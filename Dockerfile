@@ -1,5 +1,5 @@
 # Separate build stage for frontend using a Node container
-FROM node:18-alpine as frontend-builder
+FROM node:18-alpine AS frontend-builder
 
 WORKDIR /frontend
 COPY frontend /frontend
@@ -16,7 +16,6 @@ WORKDIR /docker-app
 COPY . /docker-app
 
 # Install Python dependencies in the final container
-RUN pip install ultralytics==8.3.93 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the built frontend
