@@ -8,7 +8,7 @@ COPY frontend /frontend
 RUN yarn install && yarn build
 
 # Final image to keep it minimal
-FROM python:3.11-alpine
+FROM python:3.11.11-slim
 
 WORKDIR /docker-app
 
