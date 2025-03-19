@@ -16,7 +16,7 @@ WORKDIR /docker-app
 COPY . /docker-app
 
 # Install Python dependencies in the final container
-RUN pip install ultralytics===8.3.93 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install ultralytics==8.3.93 --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the built frontend
