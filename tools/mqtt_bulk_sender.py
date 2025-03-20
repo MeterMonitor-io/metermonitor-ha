@@ -8,7 +8,8 @@ import paho.mqtt.client as mqtt
 import numpy as np
 
 # MQTT Configuration
-MQTT_BROKER = "192.168.178.24"  # Change this to your MQTT broker
+#MQTT_BROKER = "192.168.178.24"  # Change this to your MQTT broker
+MQTT_BROKER = "192.168.122.177"  # Change this to your MQTT broker
 MQTT_PORT = 1883
 MQTT_USERNAME = "esp"  # Set your MQTT username
 MQTT_PASSWORD = "esp"  # Set your MQTT password
@@ -98,6 +99,7 @@ def main():
         print(f"Selecting {MAX_IMAGES} evenly spaced images from {total_images}.")
 
     # Set up MQTT client with authentication
+
     client = mqtt.Client()
     client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)  # Set MQTT credentials
     client.connect(MQTT_BROKER, MQTT_PORT, 60)

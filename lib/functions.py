@@ -138,7 +138,7 @@ def publish_registration(mqtt_client, config, name, type):
     # publish to topic
     topic = config["publish_to"].replace("{device}", name) + "config"
     dict = {
-      "name": name,
+      "name": "Water usage",
       "state_topic": config["publish_to"].replace("{device}", name) + type,
       "unit_of_measurement": "m³",
       "device_class": "water",
