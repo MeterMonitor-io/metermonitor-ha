@@ -17,6 +17,6 @@
       "host": "0.0.0.0",
       "port": 8070
     },
-    "dbfile": "/data/watermeters.sqlite",
+    "dbfile": "data/watermeters.sqlite",
     "publish_to": "homeassistant/sensor/watermeter_{device}/"
   }

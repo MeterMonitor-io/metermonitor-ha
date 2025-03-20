@@ -4,14 +4,13 @@ import cv2
 import numpy as np
 from PIL import Image
 from fastapi import FastAPI, HTTPException, Body, Header, Depends
-from fastapi.openapi.models import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import base64
 import sqlite3
 
 from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from lib.functions import reevaluate_latest_picture, add_history_entry
 from lib.meter_processing.meter_processing import MeterPredictor
@@ -54,12 +53,10 @@ def prepare_setup_app(config, lifespan):
     )
 
     @app.middleware("http")
-    async def restrict_ip_middleware(request: Request, call_next):
+    async def restrict_ip_middleware(request, call_next):
         client_ip = request.client.host  # Get the requester's IP address
         if config["ingress"] and client_ip != "172.30.32.2": # Home Assistant IP for Ingress
-            # 403 Forbidden
-            request.state.response = Response(status_code=403)
-            return request.state.response
+            return JSONResponse(status_code=403, content={"message": "Forbidden"})
 
         return await call_next(request)
 
