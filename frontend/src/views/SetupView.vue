@@ -1,9 +1,10 @@
 <template>
 
   <n-flex>
-    <router-link to="/"><n-button quaternary round type="primary" size="large" style="padding: 0; font-size: 16px;">
+    <router-link to="/"><n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
        ← Back
     </n-button></router-link>
+    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;"/>
     <n-button :loading="loading" @click="getData" round size="large" style="margin-left: 20px;">Refresh</n-button>
   </n-flex>
     <n-h2>Setup for {{ id }}</n-h2>
@@ -11,6 +12,7 @@
   <n-steps :current="currentStep">
     <n-step
       title="Segmentation"
+      style="max-width: 500px"
     >
       <div :style="{opacity: (currentStep > 1)?0.5:1.0}">
         <SegmentationConfigurator
@@ -32,6 +34,7 @@
     </n-step>
     <n-step
       title="Threshold Extraction"
+      style="max-width: 600px"
     >
       <div v-if="currentStep > 1" :style="{opacity: (currentStep > 2)?0.5:1.0}">
         <ThresholdPicker
@@ -58,6 +61,7 @@
     <n-step
       title="Evaluation Preview"
       v-if="lastPicture"
+      style="max-width: 620px"
     >
       <div v-if="currentStep > 2">
         <EvaluationViewer :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null" :meterid="id" :timestamp="lastPicture.picture.timestamp"/>

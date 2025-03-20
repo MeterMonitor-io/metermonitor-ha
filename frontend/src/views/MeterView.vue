@@ -1,8 +1,9 @@
 <template>
   <n-flex>
-    <router-link to="/"><n-button quaternary round type="primary" size="large" style="padding: 0; font-size: 16px;">
+    <router-link to="/"><n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
        ← Back
     </n-button></router-link>
+    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;"/>
     <n-button :loading="loading" @click="loadMeter" round size="large" style="margin-left: 20px;">Refresh</n-button>
   </n-flex><br>
   <n-flex size="large">
@@ -20,7 +21,7 @@
         @positive-click="resetToSetup"
       >
         <template #trigger>
-          <n-button type="info" style="width: 100%">
+          <n-button type="info" round style="width: 100%">
             Enable Setup mode
           </n-button>
         </template>
@@ -31,38 +32,38 @@
         @positive-click="deleteMeter"
       >
         <template #trigger>
-          <n-button type="error" style="width: 100%;margin-top: 5px">
+          <n-button type="error" ghost round style="width: 100%;margin-top: 5px">
             Delete
           </n-button>
         </template>
         This will delete the meter with all its settings and data. Are you sure?
       </n-popconfirm>
       <br><br>
-    <n-card size="small">
-      <n-list>
-        <n-list-item>
-          <n-thing title="Thresholds" :title-extra="`${threshold[0]} - ${threshold[1]}`"/>
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Last digit thresholds" :title-extra="`${threshold_last[0]} - ${threshold_last[1]}`" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Islanding padding" :title-extra="islanding_padding" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Segments" :title-extra="segments" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Extended last digit" :title-extra="extendedLastDigit?'Yes':'No'" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Last 3 digits narrow" :title-extra="last3DigitsNarrow?'Yes':'No'" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Rotated 180" :title-extra="rotated180?'Yes':'No'" />
-        </n-list-item>
-      </n-list>
-    </n-card>
+      <n-card size="small">
+        <n-list>
+          <n-list-item>
+            <n-thing title="Thresholds" :title-extra="`${threshold[0]} - ${threshold[1]}`"/>
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Last digit thresholds" :title-extra="`${threshold_last[0]} - ${threshold_last[1]}`" />
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Islanding padding" :title-extra="islanding_padding" />
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Segments" :title-extra="segments" />
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Extended last digit" :title-extra="extendedLastDigit?'Yes':'No'" />
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Last 3 digits narrow" :title-extra="last3DigitsNarrow?'Yes':'No'" />
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Rotated 180" :title-extra="rotated180?'Yes':'No'" />
+          </n-list-item>
+        </n-list>
+      </n-card>
     </div>
     <div style="padding-left: 20px; padding-right: 10px;">
       <div style="height: calc(100vh - 200px); border-radius: 15px; overflow: scroll;" class="bglight">
@@ -70,19 +71,34 @@
         <template v-if="decodedEvals">
           <template v-for="[i, evalDecoded] in decodedEvals.entries()" :key="i">
             <n-flex :class="{redbg: evalDecoded[4] == null}">
-              <n-flex vertical>
-                {{new Date(evalDecoded[3]).toLocaleString()}}<br>
-                <div v-if="evalDecoded[6]" :style="{color: getColor(evalDecoded[6]), fontSize: '20px'}">
-                  <b>{{(evalDecoded[6] * 100).toFixed(1)}}</b>%
-                </div>
-              </n-flex>
               <table>
                 <tr>
+                  <td>
+                    {{new Date(evalDecoded[3]).toLocaleString()}}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="vertical-align: top;">
+                    <template v-if="evalDecoded[6]">
+                      <div style="background-color: rgba(255,255,255,0.1); border-radius: 5px; padding: 5px;">
+                        Total Confidence:
+                        <div :style="{color: getColor(evalDecoded[6]), fontSize: '20px'}">
+                          <b>{{(evalDecoded[6] * 100).toFixed(1)}}</b>%
+                        </div>
+                      </div>
+                    </template>
+                    <div v-else :style="{color: 'red', fontSize: '20px'}">
+                      Rejected
+                    </div>
+                  </td>
                   <td v-for="base64 in evalDecoded[1]" :key="base64">
                     <img class="digit" :src="'data:image/png;base64,' + base64" alt="Watermeter"/>
                   </td>
                 </tr>
                 <tr>
+                  <td style="opacity: 0.6">
+                    Predictions
+                  </td>
                   <td v-for="[i, digit] in evalDecoded[2].entries()" :key="i + 'v'" style="text-align: center;">
                     <span class="prediction" >
                       {{ (digit[0][0]=='r')? '↕' : digit[0][0] }}
@@ -90,20 +106,29 @@
                   </td>
                 </tr>
                 <tr>
+                  <td style="opacity: 0.6">
+                    Condifences
+                  </td>
                   <td v-for="[i, digit] in evalDecoded[2].entries()" :key="i + 'e'" style="text-align: center;">
                     <span class="confidence" :style="{color: getColor(digit[0][1])}">
                       {{ Math.round(digit[0][1] * 100) }}
                     </span>
                   </td>
                 </tr>
-                <tr v-if="evalDecoded[5]">
+                <tr v-if="evalDecoded[5] && !evalDecoded[5].every(num => num === null)">
+                  <td style="opacity: 0.6">
+                    Add. Prediction
+                  </td>
                   <td v-for="[i, digit] in evalDecoded[5].entries()" :key="i + 'g'" style="text-align: center;">
                     <span class="prediction" v-if="digit !== evalDecoded[2][i][0][0]">
                       {{ digit?digit[0]:'' }}
                     </span>
                   </td>
                 </tr>
-                <tr v-if="evalDecoded[5]">
+                <tr v-if="evalDecoded[5] && !evalDecoded[5].every(num => num === null)">
+                  <td style="opacity: 0.6">
+                    Add. Conf.
+                  </td>
                   <td v-for="[i, digit] in evalDecoded[5].entries()" :key="i + 'h'" style="text-align: center;">
                     <span class="confidence" :style="{color: getColor(digit?digit[1]:0)}">
                       {{ digit?digit[1]:'' }}
@@ -111,8 +136,11 @@
                   </td>
                 </tr>
                 <tr v-if="evalDecoded[4]">
-                  <td v-for="[i, digit] in (evalDecoded[4] + '').padStart(evalDecoded[1].length, '0').split('').entries()" :key="i + 'f'" style="text-align: center;">
-                    <span :class="{adjustment: true, red: evalDecoded[2][i][0][0] !== 'r'}" v-if="digit !== evalDecoded[2][i][0][0]">
+                  <td>
+                    Corrected result
+                  </td>
+                  <td v-for="[i, digit] in (evalDecoded[4] + '').padStart(evalDecoded[1].length, '0').split('').entries()" :key="i + 'f'" style="text-align: center; border-top: 2px solid rgba(255,255,255,0.6)">
+                    <span :class="{adjustment: true, red:digit !== evalDecoded[2][i][0][0], blue: evalDecoded[2][i][0][0] === 'r'}">
                       {{ digit }}
                     </span>
                   </td>
@@ -367,11 +395,15 @@ const resetToSetup = async () => {
 .adjustment{
   font-size: 20px;
   margin: 3px;
-  color: aqua;
+  color: rgba(255,255,255,0.7);
 }
 
 .red{
   color: red;
+}
+
+.red{
+  color: lime;
 }
 
 .redbg{

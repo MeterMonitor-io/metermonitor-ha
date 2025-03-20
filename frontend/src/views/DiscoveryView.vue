@@ -1,5 +1,8 @@
 <template>
-  <n-button :loading="loading" @click="getData" round size="large">Refresh</n-button>
+  <n-flex>
+    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px"/>
+    <n-button :loading="loading" @click="getData" round size="large">Refresh</n-button>
+  </n-flex>
   <n-h2>Waiting for setup</n-h2>
   <n-flex>
       <WaterMeterCard v-for="item in discoveredMeters" :key="item.id" :last_updated="item[1]" :meter_name="item[0]" :setup="true"/>

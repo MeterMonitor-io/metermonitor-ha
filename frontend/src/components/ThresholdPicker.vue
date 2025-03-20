@@ -33,7 +33,7 @@
       <n-flex justify="end" size="large">
         <n-button
             @click="() => {emits('reevaluate');emits('next')}"
-            type="primary"
+            round
         >(Re)evaluate</n-button>
       </n-flex>
     </template>

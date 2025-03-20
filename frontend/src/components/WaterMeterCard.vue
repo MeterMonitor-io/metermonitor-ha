@@ -6,8 +6,8 @@
     </n-flex>
     <template #action>
       <n-flex justify="end">
-        <router-link v-if="setup" :to="'/setup/'+meter_name"><n-button type="primary">Setup</n-button></router-link>
-        <router-link v-else :to="'/meter/'+meter_name"><n-button type="primary">View</n-button></router-link>
+        <router-link v-if="setup" :to="'/setup/'+meter_name"><n-button round>Setup</n-button></router-link>
+        <router-link v-else :to="'/meter/'+meter_name"><n-button round>View</n-button></router-link>
       </n-flex>
     </template>
   </n-card>

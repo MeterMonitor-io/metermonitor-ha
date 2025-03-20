@@ -32,7 +32,7 @@
         <n-flex justify="end" size="large">
           <n-button
               @click="finishSetup"
-              type="primary"
+              round
           >Finish & save</n-button>
         </n-flex>
       </template>

@@ -17,6 +17,10 @@ import {NLayout, NLayoutContent, NSpace} from 'naive-ui';
 
 </script>
 <style>
+body{
+  background-color: #111111;
+}
+
 .apexcharts-tooltip {
   background: #f3f3f3;
   color: #292929;
