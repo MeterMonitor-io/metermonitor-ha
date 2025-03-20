@@ -1,4 +1,5 @@
 <template>
+  <n-button :loading="loading">Refresh</n-button>
   <n-h2>Waiting for setup</n-h2>
   <n-flex>
       <WaterMeterCard v-for="item in discoveredMeters" :key="item.id" :last_updated="item[1]" :meter_name="item[0]" :setup="true"/>
@@ -12,16 +13,18 @@
 
 <script setup>
 import {onMounted, ref} from 'vue';
-import {NH2, NFlex} from 'naive-ui';
+import {NH2, NFlex, NButton} from 'naive-ui';
 import router from "@/router";
 import WaterMeterCard from "@/components/WaterMeterCard.vue";
 
 const discoveredMeters = ref([]);
 const waterMeters = ref([]);
+const loading = ref(false);
 
 
 // add secret to header of fetch request
 const getData = async () => {
+  loading.value = true;
   let response = await fetch(process.env.VUE_APP_HOST + 'api/discovery', {
     headers: {
       'secret': `${localStorage.getItem('secret')}`
@@ -35,6 +38,7 @@ const getData = async () => {
     }
   });
   waterMeters.value = (await response.json())["watermeters"];
+  loading.value = false;
 }
 
 onMounted(() => {
