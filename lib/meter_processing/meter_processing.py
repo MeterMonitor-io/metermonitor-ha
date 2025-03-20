@@ -6,7 +6,6 @@ from io import BytesIO
 import cv2
 import numpy as np
 from PIL import Image
-from pytesseract import pytesseract, Output
 from ultralytics import YOLO
 from tensorflow.keras.models import load_model
 
