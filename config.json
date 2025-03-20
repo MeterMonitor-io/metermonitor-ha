@@ -7,6 +7,7 @@
   "startup": "services",
   "arch": ["armv7", "armhf", "aarch64", "amd64", "i386"],
   "ingress": true,
+  "panel_icon": "mdi:gauge",
   "ingress_port": 8070,
   "ports": {
     "8070/tcp": 8070
