@@ -25,9 +25,19 @@
         </span>
       </n-flex>
       <n-divider />
-      Read initial value
-      <n-input-number v-model:value="initialValue" placeholder="Readout" />
-      <span style="color: rgba(255,255,255,0.3)">{{new Date(timestamp).toLocaleString()}}</span><br>
+      <n-flex>
+        <div style="max-width: 45%">
+          Read initial value
+          <n-input-number v-model:value="initialValue" placeholder="Readout" />
+          <span style="color: rgba(255,255,255,0.3)">{{new Date(timestamp).toLocaleString()}}</span><br>
+        </div>
+        <div style="max-width: 45%">
+          Max. flow rate
+          <n-input-number :value="maxFlowRate"
+                          @update:value="emit('update', $event)"
+                          placeholder="Flow rate" />
+        </div>
+      </n-flex>
       <template #action>
         <n-flex justify="end" size="large">
           <n-button
@@ -41,14 +51,17 @@
 </template>
 
 <script setup>
-import {defineProps, ref} from 'vue';
+import {defineProps, ref, defineEmits} from 'vue';
 import {NFlex, NCard, NButton, NInputNumber, NDivider, useDialog} from 'naive-ui';
 import router from "@/router";
+
+const emit = defineEmits(['update']);
 
 const props = defineProps([
     'meterid',
     'latestEval',
-    'timestamp'
+    'timestamp',
+    'maxFlowRate'
 ]);
 
 const initialValue = ref(0);

@@ -5,7 +5,7 @@ from itertools import product
 
 from dateutil.tz import tzlocal
 
-def correct_value(db_file:str, name: str, new_eval, max_flow = 0.7, allow_negative_correction = False):
+def correct_value(db_file:str, name: str, new_eval, allow_negative_correction = False, max_flow_rate = 1.0):
     # get last evaluation
     reject = False
     with sqlite3.connect(db_file) as conn:
@@ -28,7 +28,7 @@ def correct_value(db_file:str, name: str, new_eval, max_flow = 0.7, allow_negati
         new_results = new_eval[2]
         new_tesseract_results = new_eval[4]
 
-        max_flow /= 60.0
+        max_flow_rate /= 60.0
         # get the time difference in minutes
         time_diff = (new_time - last_time).seconds / 60.0
         if time_diff <= 0:
@@ -100,7 +100,7 @@ def correct_value(db_file:str, name: str, new_eval, max_flow = 0.7, allow_negati
 
         # get the flow rate
         flow_rate = (int(correctedValue) - int(last_value)) / 1000.0 / time_diff
-        if flow_rate > max_flow or (flow_rate < 0 and not allow_negative_correction) or reject:
+        if flow_rate > max_flow_rate or (flow_rate < 0 and not allow_negative_correction) or reject:
             print("Flow rate is too high or negative")
             return None
         print ("Value accepted for time", new_time, "flow rate", flow_rate, "value", correctedValue)

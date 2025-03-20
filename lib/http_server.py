@@ -51,6 +51,8 @@ def prepare_setup_app(config, lifespan):
 
     # Authentication
     def authenticate(secret: str = Header(None)):
+        if config['secret_key'] is False:
+            return
         if secret != SECRET_KEY:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -80,7 +82,7 @@ def prepare_setup_app(config, lifespan):
         rotated_180: bool
         shrink_last_3: bool
         extended_last_digit: bool
-        invert: bool
+        max_flow_rate: float
 
     class EvalRequest(BaseModel):
         eval: str
@@ -101,7 +103,6 @@ def prepare_setup_app(config, lifespan):
             threshold_low: float = Body(0, ge=0, le=255),
             threshold_high: float = Body(155, ge=0, le=255),
             islanding_padding: int = Body(20, ge=0),
-            invert: bool = Body(False)
     ):
             # Decode the base64 image
             image_data = base64.b64decode(base64str)
@@ -112,7 +113,7 @@ def prepare_setup_app(config, lifespan):
             image = np.array(image)
 
             # Apply threshold with the passed values
-            base64r, digits = meter_preditor.apply_threshold(image, threshold_low, threshold_high, islanding_padding,  invert = invert)
+            base64r, digits = meter_preditor.apply_threshold(image, threshold_low, threshold_high, islanding_padding)
 
             # Return the result
             return {"base64": base64r}
@@ -210,7 +211,7 @@ def prepare_setup_app(config, lifespan):
     @app.get("/api/settings/{name}", dependencies=[Depends(authenticate)])
     def get_settings(name: str):
         cursor = db_connection().cursor()
-        cursor.execute("SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, invert, rotated_180 FROM settings WHERE name = ?", (name,))
+        cursor.execute("SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180 FROM settings WHERE name = ?", (name,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Thresholds not found")
@@ -223,7 +224,7 @@ def prepare_setup_app(config, lifespan):
             "segments": row[5],
             "shrink_last_3": row[6],
             "extended_last_digit": row[7],
-            "invert": row[8],
+            "max_flow_rate": row[8],
             "rotated_180": row[9]
         }
 
@@ -233,14 +234,14 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute(
             """
-            INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, invert, rotated_180) 
+            INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180) 
             VALUES (?, ?, ?, ?,?,?, ?, ? , ?, ?, ?) ON CONFLICT(name) DO UPDATE SET 
             threshold_low=excluded.threshold_low, threshold_high=excluded.threshold_high, threshold_last_low=excluded.threshold_last_low, threshold_last_high=excluded.threshold_last_high,
             islanding_padding=excluded.islanding_padding,
-            segments=excluded.segments, shrink_last_3=excluded.shrink_last_3, extended_last_digit=excluded.extended_last_digit, invert=excluded.invert, rotated_180=excluded.rotated_180
+            segments=excluded.segments, shrink_last_3=excluded.shrink_last_3, extended_last_digit=excluded.extended_last_digit, max_flow_rate=excluded.max_flow_rate, rotated_180=excluded.rotated_180
             """,
             (settings.name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low, settings.threshold_last_high, settings.islanding_padding,
-             settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.invert, settings.rotated_180)
+             settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate, settings.rotated_180)
         )
         db.commit()
         return {"message": "Thresholds set", "name": settings.name}

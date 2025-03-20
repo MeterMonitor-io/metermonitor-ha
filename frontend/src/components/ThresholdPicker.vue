@@ -42,14 +42,13 @@
 
 <script setup>
 import {NFlex, NCard, NDivider, NButton, NSlider} from "naive-ui";
-import {defineProps, defineEmits, ref, watch} from 'vue';
+import {defineProps, defineEmits, ref, watch, onMounted} from 'vue';
 
 const props = defineProps([
     'encoded',
     'threshold',
     'threshold_last',
     'islanding_padding',
-    'invert'
 ]);
 
 const emits = defineEmits(['update', 'reevaluate', 'next']);
@@ -58,9 +57,12 @@ const nthreshold = ref(props.threshold);
 const nthreshold_last = ref(props.threshold_last);
 const islanding_padding = ref(props.islanding_padding);
 
-const ninvert = ref(props.invert);
 const tresholdedImages = ref([]);
 const refreshing = ref(false);
+
+onMounted(() => {
+  refreshThresholds();
+});
 
 watch(() => props.encoded, () => {
   refreshThresholds();
@@ -75,23 +77,14 @@ watch(() => props.islanding_padding, (newVal) => {
   islanding_padding.value = newVal;
 });
 
-watch(() => props.invert, (newVal) => {
-  ninvert.value = newVal;
-});
-
 const sendUpdate = () => {
   emits('update', {
     threshold: nthreshold.value,
     threshold_last: nthreshold_last.value,
     islanding_padding: islanding_padding.value,
-    invert: ninvert.value
   });
   refreshThresholds();
 }
-
-watch([ninvert], () => {
-  sendUpdate();
-});
 
 const refreshThresholds = async () => {
   if (refreshing.value) return;
@@ -120,8 +113,7 @@ async function thresholdImage(base64, threshold, islanding_padding = 0) {
       base64str: base64,
       threshold_low: threshold[0],
       threshold_high: threshold[1],
-      islanding_padding: islanding_padding,
-      invert: ninvert.value
+      islanding_padding: islanding_padding
     })
   });
   const result = await response.json();

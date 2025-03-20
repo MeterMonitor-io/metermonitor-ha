@@ -125,7 +125,7 @@ class MQTTHandler:
                         False,
                         False,
                         False,
-                        False
+                        1.0
                     ))
 
                     publish_registration(self.client, self.config, data['name'], "value")

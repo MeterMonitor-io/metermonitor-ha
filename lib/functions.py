@@ -28,7 +28,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
 
         cursor.execute('''
                    SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding,
-                    segments, shrink_last_3, extended_last_digit, invert, rotated_180
+                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180
                    FROM settings
                    WHERE name = ?
                ''', (name,))
@@ -39,7 +39,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         segments = settings[5]
         shrink_last_3 = settings[6]
         extended_last_digit = settings[7]
-        invert = settings[8]
+        max_flow_rate = settings[8]
         rotated_180 = settings[9]
 
         cursor.execute("SELECT target_brightness FROM history WHERE name = ? ORDER BY ROWID DESC LIMIT 1", (name,))
@@ -62,13 +62,13 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         if len(thresholds) == 0:
             print(f"Meter-Eval: No thresholds found for {name}")
         else:
-            processed, digits = meter_preditor.apply_thresholds(digits, thresholds, thresholds_last, islanding_padding, invert=invert)
+            processed, digits = meter_preditor.apply_thresholds(digits, thresholds, thresholds_last, islanding_padding)
             prediction, tesseract_result = meter_preditor.predict_digits(digits)
 
         value = None
         confidence = 0
         if setup:
-            r = correct_value(db_file, name, [result, processed, prediction, timestamp, tesseract_result], allow_negative_correction=config["allow_negative_correction"])
+            r = correct_value(db_file, name, [result, processed, prediction, timestamp, tesseract_result], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
             if r is not None:
                 value, confidence = r
                 cursor.execute('''

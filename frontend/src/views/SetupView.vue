@@ -40,7 +40,6 @@
         <ThresholdPicker
             :encoded="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
             :run="tresholdedImages[tresholdedImages.length-1]"
-            :invert="invert"
             :threshold="threshold"
             :threshold_last="threshold_last"
             :islanding_padding="islanding_padding"
@@ -64,7 +63,7 @@
       style="max-width: 620px"
     >
       <div v-if="currentStep > 2">
-        <EvaluationViewer :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null" :meterid="id" :timestamp="lastPicture.picture.timestamp"/>
+        <EvaluationConfigurator :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null" :max-flow-rate="max_flow_rate" @update="updateMaxFlow" :meterid="id" :timestamp="lastPicture.picture.timestamp"/>
          <br>
         <n-alert title="Info" type="info">
           <li>Check the values the model extracted</li>
@@ -84,7 +83,7 @@ import { NSteps, NStep, NButton, NAlert, NFlex, NH2 } from 'naive-ui';
 import { useRoute } from 'vue-router';
 import SegmentationConfigurator from "@/components/SegmentationConfigurator.vue";
 import ThresholdPicker from "@/components/ThresholdPicker.vue";
-import EvaluationViewer from "@/components/EvaluationViewer.vue";
+import EvaluationConfigurator from "@/components/EvaluationConfigurator.vue";
 
 const loading = ref(false);
 
@@ -113,7 +112,7 @@ const segments = ref(0);
 const extendedLastDigit = ref(false);
 const last3DigitsNarrow = ref(false);
 const rotated180 = ref(false);
-const invert = ref(false);
+const max_flow_rate = ref(1.0);
 
 const getData = async () => {
   loading.value = true;
@@ -129,6 +128,9 @@ const getData = async () => {
       'secret': `${localStorage.getItem('secret')}`
     }
   });
+  if (response.status === 401) {
+    router.push({path: '/unlock'});
+  }
   evaluations.value = await response.json();
 
   response = await fetch(process.env.VUE_APP_HOST + 'api/settings/' + id, {
@@ -147,7 +149,7 @@ const getData = async () => {
   extendedLastDigit.value = result.extended_last_digit === 1;
   last3DigitsNarrow.value = result.shrink_last_3 === 1;
   rotated180.value = result.rotated_180 === 1;
-  invert.value = result.invert === 1;
+  max_flow_rate.value = result.max_flow_rate;
 
   loading.value = false;
 }
@@ -161,12 +163,17 @@ onMounted(() => {
   getData();
 });
 
-const updateThresholds = async (data) => {
+const updateThresholds = (data) => {
   threshold.value = data.threshold;
   threshold_last.value = data.threshold_last;
   islanding_padding.value = data.islanding_padding;
-  invert.value = data.invert;
 
+  updateSettings();
+}
+
+const updateMaxFlow = (data) => {
+  console.log(data);
+  max_flow_rate.value = data;
   updateSettings();
 }
 
@@ -202,7 +209,7 @@ const updateSettings = async () => {
     segments: segments.value,
     extended_last_digit: extendedLastDigit.value,
     shrink_last_3: last3DigitsNarrow.value,
-    invert: invert.value
+    max_flow_rate: max_flow_rate.value
   }
 
   await fetch(process.env.VUE_APP_HOST + 'api/settings', {

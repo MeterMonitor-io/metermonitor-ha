@@ -1,48 +1,55 @@
 <template>
   <n-flex>
-    <router-link to="/"><n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
-       ← Back
-    </n-button></router-link>
-    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;"/>
-    <n-button :loading="loading" @click="loadMeter" round size="large" style="margin-left: 20px;">Refresh</n-button>
-  </n-flex><br>
+    <router-link to="/">
+      <n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
+        ← Back
+      </n-button>
+    </router-link>
+    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;" />
+    <n-button :loading="loading" @click="loadMeter" round size="large" style="margin-left: 20px;">
+      Refresh
+    </n-button>
+  </n-flex>
+  <br />
   <n-flex size="large">
-    <div  style="max-width: 300px">
+    <div style="max-width: 300px">
       <n-card v-if="data" :title="id" size="small">
         <template #header-extra>
-          {{new Date(data.picture.timestamp).toLocaleString()}}
+          {{ new Date(data.picture.timestamp).toLocaleString() }}
         </template>
         <template #cover>
-          <img :src="'data:image/'+data.picture.format+';base64,' + data.picture.data" alt="Watermeter" :class="{rotated: rotated180}"/>
+          <img
+            :src="'data:image/' + data.picture.format + ';base64,' + data.picture.data"
+            alt="Watermeter"
+            :class="{ rotated: rotated180 }"
+          />
         </template>
       </n-card>
-      <br>
-      <n-popconfirm
-        @positive-click="resetToSetup"
-      >
-        <template #trigger>
-          <n-button type="info" round style="width: 100%">
-            Enable Setup mode
-          </n-button>
-        </template>
-        While the meter is in setup mode, no values will be published. Are you sure?
-      </n-popconfirm>
+      <br />
+      <n-flex>
+        <n-popconfirm @positive-click="resetToSetup">
+          <template #trigger>
+            <n-button type="info" round style="width: 47%">
+              Setup
+            </n-button>
+          </template>
+          While the meter is in setup mode, no values will be published. Are you sure?
+        </n-popconfirm>
 
-      <n-popconfirm
-        @positive-click="deleteMeter"
-      >
-        <template #trigger>
-          <n-button type="error" ghost round style="width: 100%;margin-top: 5px">
-            Delete
-          </n-button>
-        </template>
-        This will delete the meter with all its settings and data. Are you sure?
-      </n-popconfirm>
-      <br><br>
+        <n-popconfirm @positive-click="deleteMeter">
+          <template #trigger>
+            <n-button type="error" ghost round style="width: 47%">
+              Delete
+            </n-button>
+          </template>
+          This will delete the meter with all its settings and data. Are you sure?
+        </n-popconfirm>
+      </n-flex>
+      <br />
       <n-card size="small">
         <n-list>
           <n-list-item>
-            <n-thing title="Thresholds" :title-extra="`${threshold[0]} - ${threshold[1]}`"/>
+            <n-thing title="Thresholds" :title-extra="`${threshold[0]} - ${threshold[1]}`" />
           </n-list-item>
           <n-list-item>
             <n-thing title="Last digit thresholds" :title-extra="`${threshold_last[0]} - ${threshold_last[1]}`" />
@@ -54,128 +61,42 @@
             <n-thing title="Segments" :title-extra="segments" />
           </n-list-item>
           <n-list-item>
-            <n-thing title="Extended last digit" :title-extra="extendedLastDigit?'Yes':'No'" />
+            <n-thing title="Extended last digit" :title-extra="extendedLastDigit ? 'Yes' : 'No'" />
           </n-list-item>
           <n-list-item>
-            <n-thing title="Last 3 digits narrow" :title-extra="last3DigitsNarrow?'Yes':'No'" />
+            <n-thing title="Last 3 digits narrow" :title-extra="last3DigitsNarrow ? 'Yes' : 'No'" />
           </n-list-item>
           <n-list-item>
-            <n-thing title="Rotated 180" :title-extra="rotated180?'Yes':'No'" />
+            <n-thing title="Rotated 180" :title-extra="rotated180 ? 'Yes' : 'No'" />
+          </n-list-item>
+          <n-list-item>
+            <n-thing title="Max. flow rate" :title-extra="maxFlowRate + ' m³/h'" />
           </n-list-item>
         </n-list>
       </n-card>
     </div>
     <div style="padding-left: 20px; padding-right: 10px;">
-      <div style="height: calc(100vh - 200px); border-radius: 15px; overflow: scroll;" class="bglight">
-        <n-h4 style="position: sticky; top: 0">Last evaluations</n-h4>
-        <template v-if="decodedEvals">
-          <template v-for="[i, evalDecoded] in decodedEvals.entries()" :key="i">
-            <n-flex :class="{redbg: evalDecoded[4] == null}">
-              <table>
-                <tr>
-                  <td>
-                    {{new Date(evalDecoded[3]).toLocaleString()}}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="vertical-align: top;">
-                    <template v-if="evalDecoded[6]">
-                      <div style="background-color: rgba(255,255,255,0.1); border-radius: 5px; padding: 5px;">
-                        Total Confidence:
-                        <div :style="{color: getColor(evalDecoded[6]), fontSize: '20px'}">
-                          <b>{{(evalDecoded[6] * 100).toFixed(1)}}</b>%
-                        </div>
-                      </div>
-                    </template>
-                    <div v-else :style="{color: 'red', fontSize: '20px'}">
-                      Rejected
-                    </div>
-                  </td>
-                  <td v-for="base64 in evalDecoded[1]" :key="base64">
-                    <img class="digit" :src="'data:image/png;base64,' + base64" alt="Watermeter"/>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="opacity: 0.6">
-                    Predictions
-                  </td>
-                  <td v-for="[i, digit] in evalDecoded[2].entries()" :key="i + 'v'" style="text-align: center;">
-                    <span class="prediction" >
-                      {{ (digit[0][0]=='r')? '↕' : digit[0][0] }}
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="opacity: 0.6">
-                    Condifences
-                  </td>
-                  <td v-for="[i, digit] in evalDecoded[2].entries()" :key="i + 'e'" style="text-align: center;">
-                    <span class="confidence" :style="{color: getColor(digit[0][1])}">
-                      {{ Math.round(digit[0][1] * 100) }}
-                    </span>
-                  </td>
-                </tr>
-                <tr v-if="evalDecoded[5] && !evalDecoded[5].every(num => num === null)">
-                  <td style="opacity: 0.6">
-                    Add. Prediction
-                  </td>
-                  <td v-for="[i, digit] in evalDecoded[5].entries()" :key="i + 'g'" style="text-align: center;">
-                    <span class="prediction" v-if="digit !== evalDecoded[2][i][0][0]">
-                      {{ digit?digit[0]:'' }}
-                    </span>
-                  </td>
-                </tr>
-                <tr v-if="evalDecoded[5] && !evalDecoded[5].every(num => num === null)">
-                  <td style="opacity: 0.6">
-                    Add. Conf.
-                  </td>
-                  <td v-for="[i, digit] in evalDecoded[5].entries()" :key="i + 'h'" style="text-align: center;">
-                    <span class="confidence" :style="{color: getColor(digit?digit[1]:0)}">
-                      {{ digit?digit[1]:'' }}
-                    </span>
-                  </td>
-                </tr>
-                <tr v-if="evalDecoded[4]">
-                  <td>
-                    Corrected result
-                  </td>
-                  <td v-for="[i, digit] in (evalDecoded[4] + '').padStart(evalDecoded[1].length, '0').split('').entries()" :key="i + 'f'" style="text-align: center; border-top: 2px solid rgba(255,255,255,0.6)">
-                    <span :class="{adjustment: true, red:digit !== evalDecoded[2][i][0][0], blue: evalDecoded[2][i][0][0] === 'r'}">
-                      {{ digit }}
-                    </span>
-                  </td>
-                </tr>
-              </table>
-            </n-flex>
-            <n-divider/>
-          </template>
-        </template>
-      </div>
+      <EvaluationResultList :decodedEvals="decodedEvals" />
     </div>
     <div style="overflow: hidden;">
-      <apex-chart class="bg" width="500" type="line" :series="series" :options="options"></apex-chart>
-      <apex-chart class="bg" width="500" type="line" :series="seriesConf" :options="optionsConf"></apex-chart>
+      <apex-chart class="bg" width="500" type="line" :series="series" :options="options" />
+      <apex-chart class="bg" width="500" type="line" :series="seriesConf" :options="optionsConf" />
     </div>
   </n-flex>
 </template>
 
 <script setup>
-import {NH4, NFlex, NCard, NDivider, NButton, NPopconfirm, NList, NListItem, NThing} from "naive-ui";
+import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import {computed, onMounted, ref} from "vue";
-import router from "@/router";
+import router from '@/router';
 import ApexChart from 'vue3-apexcharts';
+import EvaluationResultList from "@/components/EvaluationResultList.vue";
+import {NFlex, NCard, NButton, NPopconfirm, NList, NListItem, NThing} from "naive-ui";
 
 const route = useRoute();
-
 const id = route.params.id;
 
-onMounted(() => {
-  loadMeter();
-});
-
 const loading = ref(false);
-
 const data = ref(null);
 const evaluations = ref(null);
 const history = ref(null);
@@ -187,75 +108,60 @@ const segments = ref(0);
 const extendedLastDigit = ref(false);
 const last3DigitsNarrow = ref(false);
 const rotated180 = ref(false);
-const invert = ref(false);
+const maxFlowRate = ref(1.0);
 
-const decodedEvals = computed(
-  () => {
-    console.log(evaluations.value ? evaluations.value.evals.map((encoded) => JSON.parse(encoded)).reverse() : [])
-    return evaluations.value ? evaluations.value.evals.map((encoded) => JSON.parse(encoded)).reverse() : []
-  }
-);
-function getColor(value) {
-  // Clamp the value between 0 and 1
-  value = Math.max(0, Math.min(1, value));
-
-  // Map value (0.0 to 1.0) to hue (0 = red, 60 = yellow, 120 = green)
-  const hue = value * 120;
-
-  // Using 100% saturation and 40% lightness for good contrast on white.
-  return `hsl(${hue}, 100%, 40%)`;
-}
+const decodedEvals = computed(() => {
+  return evaluations.value ? evaluations.value.evals.map((encoded) => JSON.parse(encoded)).reverse() : [];
+});
 
 const loadMeter = async () => {
   loading.value = true;
   let response = await fetch(process.env.VUE_APP_HOST + 'api/watermeters/' + id, {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
+    headers: { secret: localStorage.getItem('secret') }
   });
+  if (response.status === 401) {
+    router.push({ path: '/unlock' });
+  }
   data.value = await response.json();
 
   response = await fetch(process.env.VUE_APP_HOST + 'api/watermeters/' + id + '/evals', {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
+    headers: { secret: localStorage.getItem('secret') }
   });
   evaluations.value = await response.json();
 
   response = await fetch(process.env.VUE_APP_HOST + 'api/watermeters/' + id + '/history', {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
+    headers: { secret: localStorage.getItem('secret') }
   });
   history.value = await response.json();
 
-    response = await fetch(process.env.VUE_APP_HOST + 'api/settings/' + id, {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
+  response = await fetch(process.env.VUE_APP_HOST + 'api/settings/' + id, {
+    headers: { secret: localStorage.getItem('secret') }
   });
-
   let result = await response.json();
-
   threshold.value = [result.threshold_low, result.threshold_high];
   threshold_last.value = [result.threshold_last_low, result.threshold_last_high];
   islanding_padding.value = result.islanding_padding;
-
   segments.value = result.segments;
   extendedLastDigit.value = result.extended_last_digit === 1;
   last3DigitsNarrow.value = result.shrink_last_3 === 1;
   rotated180.value = result.rotated_180 === 1;
-  invert.value = result.invert === 1;
+  maxFlowRate.value = result.max_flow_rate;
 
   loading.value = false;
-}
+};
+
+onMounted(() => {
+  loadMeter();
+});
 
 const series = computed(() => {
   if (history.value) {
-    return [{
-      name: 'Consumption m³',
-      data: history.value.history.map((item) => [new Date(item[1]), item[0] / 1000])
-    }]
+    return [
+      {
+        name: 'Consumption m³',
+        data: history.value.history.map((item) => [new Date(item[1]), item[0] / 1000])
+      }
+    ];
   } else {
     return [];
   }
@@ -263,171 +169,107 @@ const series = computed(() => {
 
 const seriesConf = computed(() => {
   if (history.value) {
-    console.log(history.value)
-    return [{
-      name: 'Confidence in %',
-      data: history.value.history.map((item) => [new Date(item[1]), item[2] * 100])
-    }]
+    return [
+      {
+        name: 'Confidence in %',
+        data: history.value.history.map((item) => [new Date(item[1]), item[2] * 100])
+      }
+    ];
   } else {
     return [];
   }
 });
 
 const options = {
+  theme: { mode: 'dark' },
   title: {
-    text: 'Consumption'
+    text: 'Consumption',
   },
   chart: {
     type: 'line',
-    zoom: {
-      enabled: true
-    }
+    zoom: { enabled: true },
+    background: '#00000000',
   },
   xaxis: {
-    type: 'datetime',
+    type: "datetime",
     labels: {
-      formatter: function (value, timestamp) {
-      return new Date(timestamp).toLocaleString() // The formatter function overrides format property
+      rotate: -30, // Less rotation for compactness
+      format: "dd MMM HH:mm", // Shorter date format
     },
-    },
-    title: {
-      text: 'Time'
-    }
+    tickAmount: 5, // Reduces number of ticks for compactness
   },
   yaxis: {
-    title: {
-      text: 'Consumption m³'
-    }
+    title: {text: 'Consumption m³'},
+    labels: {
+    },
   },
-  stroke: {
-    curve: 'smooth'
-  },
+  stroke: { curve: 'smooth' },
   tooltip: {
-    x: {
-      format: 'dd MMM HH:mm'
-    }
+    x: { format: 'dd MMM HH:mm' },
   }
 };
 
 const optionsConf = {
+  theme: { mode: 'dark' },
   title: {
-    text: 'Confidence'
+    text: 'Consumption',
   },
   chart: {
     type: 'line',
-    zoom: {
-      enabled: true
-    }
+    zoom: { enabled: true },
+    background: '#00000000',
   },
   xaxis: {
-    type: 'datetime',
+    type: "datetime",
     labels: {
-      formatter: function (value, timestamp) {
-      return new Date(timestamp).toLocaleString() // The formatter function overrides format property
+      rotate: -30, // Less rotation for compactness
+      format: "dd MMM HH:mm", // Shorter date format
     },
-    },
-    title: {
-      text: 'Time'
-    }
+    tickAmount: 5, // Reduces number of ticks for compactness
   },
   yaxis: {
-    title: {
-      text: 'Confidence in %'
-    },
-    labels: {
-      formatter: function (value) {
-        return value.toFixed(1) + '%';
-      }
-    }
+    title: {text: 'Confidence %'},
+    labels: { formatter: (value) => value.toFixed(1) + '%' }
   },
-  stroke: {
-    curve: 'smooth'
-  },
+  stroke: { curve: 'smooth' },
   tooltip: {
-    x: {
-      format: 'dd MMM HH:mm'
-    }
+    x: { format: 'dd MMM HH:mm' },
   }
 };
 
 const deleteMeter = async () => {
   let response = await fetch(process.env.VUE_APP_HOST + 'api/watermeters/' + id, {
     method: 'DELETE',
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
+    headers: { secret: localStorage.getItem('secret') }
   });
-
   if (response.status === 200) {
-    router.replace({path: '/'});
+    router.replace({ path: '/' });
   } else {
     console.log('Error deleting meter');
   }
-}
+};
 
 const resetToSetup = async () => {
   let response = await fetch(process.env.VUE_APP_HOST + 'api/setup/' + id + '/enable', {
     method: 'POST',
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
+    headers: { secret: localStorage.getItem('secret') }
   });
-
   if (response.status === 200) {
-    router.replace({path: '/setup/' + id});
+    router.replace({ path: '/setup/' + id });
   } else {
     console.log('Error resetting meter');
   }
-}
-
+};
 </script>
 
 <style scoped>
-.digit{
-  margin: 3px;
+.rotated {
+  transform: rotate(180deg);
 }
-
-.prediction{
-  margin: 3px;
-  font-size: 20px;
-}
-
-.adjustment{
-  font-size: 20px;
-  margin: 3px;
-  color: rgba(255,255,255,0.7);
-}
-
-.red{
-  color: red;
-}
-
-.red{
-  color: lime;
-}
-
-.redbg{
-  background-color: rgba(255, 0, 0, 0.1);
-}
-
-.confidence{
-  margin: 3px;
-  font-size: 12px;
-}
-
-.bg{
-  background-color: rgba(240, 240, 240, 0.8);
+.bg {
+  background-color: rgba(240, 240, 240, 0.1);
   padding: 20px;
   border-radius: 15px;
   margin-bottom: 15px;
-}
-
-.bglight{
-  background-color: rgba(240, 240, 240, 0.1);
-  padding: 20px;
-}
-
-.rotated{
-  transform: rotate(180deg);
 }
 </style>

@@ -68,7 +68,7 @@ def build_message(file_path, picture_number):
         else: timestamp = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(int(timestamp)))
 
     return {
-        "name": "TESTSENSOR6",
+        "name": "TESTSENSOR5",
         "picture_number": picture_number,
         "WiFi-RSSI": -57,
         "picture": {

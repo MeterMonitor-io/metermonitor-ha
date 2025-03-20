@@ -33,6 +33,9 @@ const getData = async () => {
       'secret': `${localStorage.getItem('secret')}`
     }
   });
+  if (response.status === 401) {
+    router.push({ path: '/unlock' });
+  }
   discoveredMeters.value = (await response.json())["watermeters"];
 
   response = await fetch(process.env.VUE_APP_HOST + 'api/watermeters', {

@@ -6,21 +6,17 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 # check if args --setup is given
-import argparse
 import json
 from fastapi import FastAPI
 
 from lib.http_server import prepare_setup_app
 from lib.mqtt_handler import MQTTHandler
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--setup", action="store_true")
-args = parser.parse_args()
-
 # parse config.yaml
 path = '/data/options.json'
 if not os.path.exists(path):
-    path = 'data/options.json'
+    print("Running standalone, using settings.json")
+    path = 'settings.json'
 with open(path, 'r') as file:
     config = json.load(file)
 
@@ -52,7 +48,7 @@ with open(path, 'r') as file:
                     rotated_180 BOOLEAN,
                     shrink_last_3 BOOLEAN,
                     extended_last_digit BOOLEAN,
-                    invert BOOLEAN,
+                    max_flow_rate FLOAT,
                     FOREIGN KEY(name) REFERENCES watermeters(name)
                 )
             ''')
@@ -76,19 +72,9 @@ with open(path, 'r') as file:
                 )
             ''')
     db_connection.commit()
-
-    # MQTT Config
-    # example yaml:
-    # mqtt:
-    #   broker: "localhost"
-    #   port: 1883
-    #   topic: "MeterMonitor/#"
-    #   username: "user"
-    #   password: "password"
-
     MQTT_CONFIG = config['mqtt']
 
-    if args.setup:
+    if config['http']['enabled']:
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             def run_mqtt():
@@ -100,11 +86,8 @@ with open(path, 'r') as file:
             yield
 
         app = prepare_setup_app(config, lifespan)
-
-        # print routes
-        print(app.routes)
-
-        uvicorn.run(app, host="0.0.0.0", port=8070, log_level="error")
+        print(f"Starting setup server on http://{config['http']['host']}:{config['http']['port']}")
+        uvicorn.run(app, host=config['http']['host'], port=config['http']['port'], log_level="error")
 
     else:
         print(config)

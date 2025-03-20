@@ -176,10 +176,7 @@ class MeterPredictor:
 
         return base64s, digits, target_brightness
 
-    def apply_threshold(self, digit, threshold_low, threshold_high, islanding_padding=40, invert=False):
-        if invert:
-            digit = cv2.bitwise_not(digit)
-
+    def apply_threshold(self, digit, threshold_low, threshold_high, islanding_padding=40):
         threshold_low, threshold_high = int(threshold_low), int(threshold_high)
         islanding_padding = int(islanding_padding)
 
@@ -339,7 +336,7 @@ class MeterPredictor:
 
         return predicted_digits, tesseract_digits
 
-    def apply_thresholds(self, digits, thresholds, thresholds_last, islanding_padding, invert=False):
+    def apply_thresholds(self, digits, thresholds, thresholds_last, islanding_padding):
         """
         Digits are np arrays
         apply black/white thresholding to each digit
@@ -355,7 +352,7 @@ class MeterPredictor:
             if i >= len(digits) - 3:
                 threshold_low = thresholds_last[0]
                 threshold_high = thresholds_last[1]
-            img_str, digit = self.apply_threshold(digit, threshold_low, threshold_high, islanding_padding, invert)
+            img_str, digit = self.apply_threshold(digit, threshold_low, threshold_high, islanding_padding)
 
             thresholded_digits.append(digit)
             base64s.append(img_str)
