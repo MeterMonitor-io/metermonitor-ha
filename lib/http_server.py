@@ -15,7 +15,7 @@ from starlette.requests import Request
 
 from lib.functions import reevaluate_latest_picture, add_history_entry
 from lib.meter_processing.meter_processing import MeterPredictor
-from lib.global_alerts import get_alerts
+from lib.global_alerts import get_alerts, add_alert
 
 
 # http server class
@@ -35,6 +35,9 @@ def prepare_setup_app(config, lifespan):
     app = FastAPI(lifespan=lifespan)
     SECRET_KEY = config['secret_key']
     db_connection = lambda: sqlite3.connect(config['dbfile'])
+
+    if config['secret'] == "change_me" and config['enable_auth']:
+        add_alert("authentication", "Please change the secret key in the configuration file!")
 
     meter_preditor = MeterPredictor(
         yolo_model_path="models/yolo-best-obb-2.pt",

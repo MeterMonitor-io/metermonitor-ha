@@ -13,25 +13,25 @@
     "8070/tcp": 8070
   },
   "options": {
-    "dbfile": "data/watermeters.sqlite",
-    "enable_auth": false,
-    "secret_key": "change_me",
     "max_history": 500,
     "max_evals": 200,
-    "allow_negative_correction": true,
-    "http": {
-      "enabled": true,
-      "host": "0.0.0.0",
-      "port": 8070
-    },
-    "publish_to": "homeassistant/sensor/watermeter_{device}/",
     "mqtt": {
       "broker": "172.30.32.1",
       "port": 1883,
       "topic": "MeterMonitor/#",
       "username": "esp",
       "password": "esp"
-    }
+    },
+    "allow_negative_correction": true,
+    "enable_auth": false,
+    "secret_key": "change_me",
+    "http": {
+      "enabled": true,
+      "host": "0.0.0.0",
+      "port": 8070
+    },
+    "dbfile": "/data/watermeters.sqlite",
+    "publish_to": "homeassistant/sensor/watermeter_{device}/"
   },
   "schema": {
     "dbfile": "str",
