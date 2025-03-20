@@ -14,7 +14,8 @@
   },
   "options": {
     "dbfile": "data/watermeters.sqlite",
-    "secret_key": false,
+    "enable_auth": false,
+    "secret_key": "change_me",
     "max_history": 500,
     "max_evals": 200,
     "allow_negative_correction": true,
@@ -34,6 +35,7 @@
   },
   "schema": {
     "dbfile": "str",
+    "enable_auth": "bool",
     "secret_key": "str",
     "max_history": "int(1,)",
     "max_evals": "int(1,)",

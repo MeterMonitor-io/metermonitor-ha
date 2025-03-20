@@ -1,6 +1,7 @@
 {
   "dbfile": "data/watermeters.sqlite",
-  "secret_key": false,
+  "enable_auth": true,
+  "secret_key": "change_me",
   "max_history": 500,
   "max_evals": 200,
   "allow_negative_correction": true,

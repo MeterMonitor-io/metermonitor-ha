@@ -52,7 +52,7 @@ def prepare_setup_app(config, lifespan):
 
     # Authentication
     def authenticate(secret: str = Header(None)):
-        if config['secret_key'] is False:
+        if not config['enable_auth']:
             return
         if secret != SECRET_KEY:
             raise HTTPException(status_code=401, detail="Unauthorized")
