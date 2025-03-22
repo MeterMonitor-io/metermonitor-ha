@@ -25,7 +25,9 @@
 4. **Start & Use**: Launch the add-on. Access the UI via Ingress.
 
 MQTT sensors are auto-discovered as long as the Mosquitto addon is used and auto discovery is enabled (default). No manual YAML needed.
-The docker container is beeing built for the architecture `amd64` and `aarch64` (arm), with `aarch64` being untested.
+
+The docker container is being built for the architecture `amd64` and `aarch64` (arm), with `aarch64` being untested.
+
 ---
 
 ## 🖥️ Standalone Setup
