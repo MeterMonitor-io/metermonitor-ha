@@ -8,8 +8,8 @@ import paho.mqtt.client as mqtt
 import numpy as np
 
 # MQTT Configuration
-#MQTT_BROKER = "192.168.178.24"  # Change this to your MQTT broker
-MQTT_BROKER = "192.168.122.177"  # Change this to your MQTT broker
+MQTT_BROKER = "192.168.178.24"  # Change this to your MQTT broker
+#MQTT_BROKER = "192.168.122.177"  # Change this to your MQTT broker
 MQTT_PORT = 1883
 MQTT_USERNAME = "esp"  # Set your MQTT username
 MQTT_PASSWORD = "esp"  # Set your MQTT password
@@ -69,7 +69,7 @@ def build_message(file_path, picture_number):
         else: timestamp = time.strftime('%Y-%m-%dT%H:%M:%S', time.gmtime(int(timestamp)))
 
     return {
-        "name": "TESTSENSOR5",
+        "name": "Eval 4",
         "picture_number": picture_number,
         "WiFi-RSSI": -57,
         "picture": {

@@ -1,5 +1,11 @@
 from threading import Lock
 
+# This is a global variable that is used to store alerts
+# to be shown in the frontend.
+
+# This provides a thread safe way to add, remove and get alerts.
+# For communication between frontend and mqtt_handler.py
+
 alerts = {}
 alerts_lock = Lock()
 

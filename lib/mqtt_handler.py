@@ -12,17 +12,18 @@ import traceback
 from lib.global_alerts import add_alert, remove_alert
 
 class MQTTHandler:
+
     def __init__(self,config, db_file: str = 'watermeters.db', forever: bool = False):
         self.db_file = db_file
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self.config = config
         self.forever = forever
         self.should_reconnect = True
-        self.meter_preditor = MeterPredictor(
-            yolo_model_path = "models/yolo-best-obb-2.pt",
-            digit_classifier_model_path = "models/digit_classifier.pth"
-        )
+        self.meter_preditor = MeterPredictor()
         print("MQTT-Handler: Loaded MQTT meter predictor.")
+
+    # On connect, remove the alert for the frontend
+    # Also publish registration messages for all known watermeters
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
@@ -42,12 +43,15 @@ class MQTTHandler:
             for row in rows:
                 publish_registration(self.client, self.config, row[0], "value")
 
+
+    # On disconnect, add an alert for the frontend and try to reconnect
     def _on_disconnect(self, client, userdata, rc, properties=None, packet=None, reason=None):
         print(f"Disconnected with code {rc}")
         add_alert("mqtt", "Disconnected from MQTT broker")
         if self.should_reconnect:
             self._reconnect()
 
+    # Reconnect with exponential backoff
     def _reconnect(self):
         """Attempts to reconnect with exponential backoff"""
         delay = 1  # Initial delay in seconds
@@ -67,6 +71,7 @@ class MQTTHandler:
                 time.sleep(delay)
                 delay = min(delay * 2, max_delay)  # Exponential backoff
 
+    # Validate the incoming message
     def _on_message(self, client, userdata, msg):
         data = json.loads(msg.payload)
         self._process_message(data)
@@ -95,6 +100,7 @@ class MQTTHandler:
 
         return True
 
+    # Process the incoming message
     def _process_message(self, data: Dict[str, Any]):
         try:
             if not self._validate_message(data):
@@ -171,6 +177,7 @@ class MQTTHandler:
             # print traceback
             traceback.print_exc()
 
+    # Start the MQTT client
     def start(self,
               broker: str = 'localhost',
               port: int = 1883,

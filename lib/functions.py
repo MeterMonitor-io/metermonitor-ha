@@ -1,21 +1,17 @@
 import base64
 import sqlite3
 import json
-from datetime import datetime
 
 from PIL import Image
 from io import BytesIO
 
-from tensorflow import timestamp
-
 from lib.history_correction import correct_value
 
-
+# This file reevaluates the latest picture of a watermeter and saves the result in the database.
 def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, publish: bool = False, mqtt_client = None):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
 
-        # get last picture
         # get latest image from watermeter
         cursor.execute("SELECT picture_data, picture_timestamp, setup FROM watermeters WHERE name = ? ORDER BY picture_number DESC LIMIT 1", (name,))
         row = cursor.fetchone()
@@ -26,6 +22,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         timestamp = row[1]
         setup = row[2] == 1
 
+        # Get current settings for the watermeter
         cursor.execute('''
                    SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding,
                     segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180
@@ -42,33 +39,37 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         max_flow_rate = settings[8]
         rotated_180 = settings[9]
 
+        # Get the target_brightness from the last history entry
         cursor.execute("SELECT target_brightness FROM history WHERE name = ? ORDER BY ROWID DESC LIMIT 1", (name,))
         row = cursor.fetchone()
         target_brightness = None
         if row:
             target_brightness = row[0]
         conn.commit()
-
         image = Image.open(BytesIO(image_data))
-        result, digits, target_brightness = meter_preditor.predict_single_image(image, segments=segments, shrink_last_3=shrink_last_3,
+
+        # Use the meter predictor to extract the digits from the image
+        result, digits, target_brightness = meter_preditor.extract_display_and_segment(image, segments=segments, shrink_last_3=shrink_last_3,
                                                                   extended_last_digit=extended_last_digit, rotated_180=rotated_180, target_brightness=target_brightness)
 
         if not result or len(result) == 0:
             print(f"Meter-Eval: No result found for {name}")
             return None
 
+        # Apply thresholds and extract the digits
         processed = []
         prediction = []
         if len(thresholds) == 0:
             print(f"Meter-Eval: No thresholds found for {name}")
         else:
             processed, digits = meter_preditor.apply_thresholds(digits, thresholds, thresholds_last, islanding_padding)
-            prediction, tesseract_result = meter_preditor.predict_digits(digits)
+            prediction, second_model_results = meter_preditor.predict_digits(digits)
 
+        # If the setup is finished, try to correct the value and save the result
         value = None
         confidence = 0
         if setup:
-            r = correct_value(db_file, name, [result, processed, prediction, timestamp, tesseract_result], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
+            r = correct_value(db_file, name, [result, processed, prediction, timestamp, second_model_results], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
             if r is not None:
                 value, confidence = r
                 cursor.execute('''
@@ -104,7 +105,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                    VALUES (?,?)
                ''', (
             name,
-            json.dumps([result, processed, prediction, timestamp, value, tesseract_result, confidence])
+            json.dumps([result, processed, prediction, timestamp, value, second_model_results, confidence])
         ))
 
         # remove old evaluations (keep 5)
@@ -125,6 +126,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         print(f"Meter-Eval: Prediction saved for {name}")
         return target_brightness, confidence
 
+# Function to publish the value to the MQTT broker, compatible with Home Assistant
 def publish_value(mqtt_client, config, name, value):
     # publish to topic
     topic = config["publish_to"].replace("{device}", name) + "value"
@@ -134,6 +136,7 @@ def publish_value(mqtt_client, config, name, value):
     mqtt_client.publish(topic, json.dumps(dict), qos=1, retain=True)
     print(f"Meter-Eval: Value published for {name} ({value} m³)")
 
+# Function to publish the registration to the MQTT broker, compatible with Home Assistant
 def publish_registration(mqtt_client, config, name, type):
     # publish to topic
     topic = config["publish_to"].replace("{device}", name) + "config"
@@ -155,6 +158,7 @@ def publish_registration(mqtt_client, config, name, type):
     mqtt_client.publish(topic, json.dumps(dict), qos=1, retain=True)
     print(f"Meter-Eval: Registration published for {name}")
 
+# Function to add a history entry to the database, removing old entries
 def add_history_entry(db_file: str, name: str, value: int, confidence:int, target_brightness: float, timestamp: str, config, manual: bool = False):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()

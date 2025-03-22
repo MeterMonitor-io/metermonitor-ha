@@ -18,30 +18,20 @@ from lib.global_alerts import get_alerts, add_alert
 
 
 # http server class
-# that serves the json api endpoints:
-
-# GET /discovery - Returns watermeters that are not setup
-# GET /evaluate?base64=... - Returns the evaluation of the base64 encoded image
-#                            (Uses MeterPredictor class to evaluate the image)
-
-# GET /watermeters - Returns all watermeters
-# GET /watermeters/:name - Returns the watermeter with the given name, including the evaluation results
-
-# POST /setup - Sets up the watermeter with the given name
-# POST /thresholds - Sets the thresholds for the watermeter with the given name (completes the setup)
+# FastAPOI automatically creates a documentation for the API on the path /docs
 
 def prepare_setup_app(config, lifespan):
     app = FastAPI(lifespan=lifespan)
     SECRET_KEY = config['secret_key']
     db_connection = lambda: sqlite3.connect(config['dbfile'])
 
+    # Warn user if secret key is not changed
     if config['secret_key'] == "change_me" and config['enable_auth']:
         add_alert("authentication", "Please change the secret key in the configuration file!")
 
-    meter_preditor = MeterPredictor(
-        yolo_model_path="models/yolo-best-obb-2.pt",
-        digit_classifier_model_path="models/digit_classifier.pth"
-    )
+    # create instance of meter predictor
+    meter_preditor = MeterPredictor()
+
     print("HTTP-Server: Loaded HTTP meter predictor.")
 
     # CORS Konfiguration
@@ -52,6 +42,7 @@ def prepare_setup_app(config, lifespan):
         allow_headers=["*"],
     )
 
+    # When using home assistant ingress, restrict access to the ingress IP
     @app.middleware("http")
     async def restrict_ip_middleware(request, call_next):
         client_ip = request.client.host  # Get the requester's IP address

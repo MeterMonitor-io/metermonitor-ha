@@ -14,7 +14,7 @@
       title="Segmentation"
       style="max-width: 500px"
     >
-      <div :style="{opacity: (currentStep > 1)?0.5:1.0}">
+      <div :style="{opacity: (currentStep > 1)?0.7:1.0}">
         <SegmentationConfigurator
             :last-picture="lastPicture"
             :extended-last-digit="extendedLastDigit"
@@ -36,7 +36,7 @@
       title="Threshold Extraction"
       style="max-width: 600px"
     >
-      <div v-if="currentStep > 1" :style="{opacity: (currentStep > 2)?0.5:1.0}">
+      <div v-if="currentStep > 1" :style="{opacity: (currentStep > 2)?0.7:1.0}">
         <ThresholdPicker
             :encoded="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
             :run="tresholdedImages[tresholdedImages.length-1]"
