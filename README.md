@@ -1,4 +1,4 @@
-![alt logo](./logo.png)
+![alt logo](./logogit.png)
 # MeterMonitor - OCR + AI for Water Meters
 
 
