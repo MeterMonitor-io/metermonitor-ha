@@ -19,7 +19,7 @@ config = {}
 # options.json is used in the addon, while settings.json is used in standalone mode
 # the addon will merge the options.json with the settings.json
 
-path = 'data/options.json'
+path = '/data/options.json'
 if not os.path.exists(path):
     print("Running standalone, using settings.json")
     path = 'settings.json'

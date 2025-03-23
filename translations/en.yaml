@@ -23,7 +23,7 @@ configuration:
   http:
     name: HTTP Server
     description: Enable or disable the frontend functionality. Keep defaults when using with Home Assistant
-  publish_topic:
+  publish_to:
     name: MQTT Publish Topic
     description: Topic to publish the data to (default is compatible with Home Assistants Mosquitto addons device-auto-discorvery)
   mqtt:
