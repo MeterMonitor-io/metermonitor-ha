@@ -4,8 +4,6 @@ import threading
 from contextlib import asynccontextmanager
 
 import uvicorn
-
-# check if args --setup is given
 import json
 from fastapi import FastAPI
 

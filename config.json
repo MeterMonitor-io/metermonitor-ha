@@ -10,8 +10,8 @@
   "panel_icon": "mdi:gauge",
   "ingress_port": 8070,
   "options": {
-    "max_history": 500,
-    "max_evals": 200,
+    "max_history": 200,
+    "max_evals": 30,
     "mqtt": {
       "broker": "172.30.32.1",
       "port": 1883,

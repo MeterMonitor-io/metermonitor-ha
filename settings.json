@@ -1,6 +1,6 @@
 {
-    "max_history": 500,
-    "max_evals": 200,
+    "max_history": 200,
+    "max_evals": 30,
     "mqtt": {
       "broker": "192.168.178.24",
       "port": 1883,

@@ -23,7 +23,7 @@ class MeterPredictor:
         # Load YOLO model (oriented bounding box capable)
         self.model = YOLO("models/yolo-best-obb-2.pt")
 
-        # Define the model architecture (same as during training)
+        # Load tensorflow model
         self.digitmodel = load_model('models/th_digit_classifier_2.h5')
         self.class_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'r']
 
