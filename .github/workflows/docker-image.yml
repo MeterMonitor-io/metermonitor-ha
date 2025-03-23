@@ -40,11 +40,37 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+      - name: Build and push container image
+        uses: docker/build-push-action@v6.13.0
+        id: docker_build
         with:
           context: .
           platforms: linux/amd64,linux/arm64
-          tags: ghcr.io/<OWNER>/<REPO>:${{ github.sha }},ghcr.io/<OWNER>/<REPO>:latest
-          cache-from: type=gha,scope=my-app-cache
-          cache-to: type=gha,scope=my-app-cache,mode=max
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.extract_info.outputs.version }}
+          labels: |
+            org.opencontainers.image.title="Meter Monitor"
+            org.opencontainers.image.description="Integrate ESP32 based meter monitor cams with Home Assistant using AI"
+            org.opencontainers.image.vendor=HSRM
+            org.opencontainers.image.authors="Philipp Seelos"
+            org.opencontainers.image.url=https://github.com/phiph-s/metermonitor-managementserver
+            org.opencontainers.image.source=https://github.com/phiph-s/metermonitor-managementserver
+            org.opencontainers.image.version=${{ steps.extract_info.outputs.version }}
+            io.hass.name="Meter Monitor"
+            io.hass.url=https://github.com/phiph-s/metermonitor-managementserver
+            io.hass.version=${{ steps.extract_info.outputs.version }}
+            io.hass.type=addon
+            io.hass.arch=armv7|aarch64|amd64
+          annotations: |
+            org.opencontainers.image.title="Meter Monitor"
+            org.opencontainers.image.description="Integrate ESP32 based meter monitor cams with Home Assistant using AI"
+            org.opencontainers.image.vendor=HSRM
+            org.opencontainers.image.authors="Philipp Seelos"
+            org.opencontainers.image.version=${{ steps.extract_info.outputs.version }}
+            org.opencontainers.image.url=https://github.com/phiph-s/metermonitor-managementserver             
+         
+
+      - name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
