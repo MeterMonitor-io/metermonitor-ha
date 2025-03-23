@@ -1,3 +1,4 @@
+import os
 from io import BytesIO
 
 import cv2
@@ -10,7 +11,7 @@ import base64
 import sqlite3
 
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, FileResponse
 
 from lib.functions import reevaluate_latest_picture, add_history_entry
 from lib.meter_processing.meter_processing import MeterPredictor
@@ -295,8 +296,14 @@ def prepare_setup_app(config, lifespan):
         db.commit()
         return {"message": "Eval added", "name": name}
 
-    # Serve Vue Frontend from dist directory
-    app.mount("/", StaticFiles(directory="frontend/dist", html=True), name="static")
+    @app.get("/")
+    async def serve_index():
+        file_path = os.path.join("frontend/dist", "index.html")
+        response = FileResponse(file_path)
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate"
+        return response
+
+    app.mount("/assets", StaticFiles(directory="frontend/dist/assets"), name="assets")
 
     print("HTTP-Server: Setup complete.")
     return app
