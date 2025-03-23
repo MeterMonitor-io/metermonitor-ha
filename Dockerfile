@@ -4,8 +4,8 @@ FROM node:18-alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend /frontend
 
-# Install dependencies and build frontend
-RUN yarn install && yarn build
+# Check if dist/ exists, if not, install deps and build
+RUN if [ ! -d dist ]; then yarn install && yarn build; else echo "Skipping frontend build, dist/ already exists."; fi
 
 # Final image to keep it minimal
 FROM ultralytics/ultralytics:latest-cpu
