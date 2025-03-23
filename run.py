@@ -31,7 +31,7 @@ else:
         config = json.load(f)
 
     # merge missing options in options.json with settings.json
-    with open('settings.json', 'r') as f:
+    with open('ha_default_settings.json', 'r') as f:
         settings = json.load(f)
         for key in settings:
             if key not in config:
