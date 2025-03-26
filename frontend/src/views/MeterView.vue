@@ -217,7 +217,7 @@ const options = {
 const optionsConf = {
   theme: { mode: 'dark' },
   title: {
-    text: 'Consumption',
+    text: 'Confidence',
   },
   chart: {
     type: 'line',
