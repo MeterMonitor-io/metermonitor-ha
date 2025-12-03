@@ -20,7 +20,7 @@ FROM scratch AS base
 FROM ultralytics/ultralytics:8.3.96-cpu AS base-amd64
 
 # ARM64 uses fixed Ultralytics ARM64 build
-FROM ultralytics/ultralytics:8.3.96-arm64 AS base-arm64
+FROM ultralytics/ultralytics:8.3.234-arm64 AS base-arm64
 
 # Dispatch to correct base image based on target architecture
 FROM base-${TARGETARCH} AS runtime
