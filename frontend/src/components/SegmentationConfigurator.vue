@@ -4,16 +4,21 @@
       <img v-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data" alt="Watermeter" :class="{rotated: nrotated180}" />
     </template>
     <br>
+
+    <n-alert v-if="noBoundingBox" title="No bounding box found" type="warning" style="margin-bottom: 15px;">
+      Without a bounding box the segmentation will not work. Adjust the camera angle or lighting and try again.
+    </n-alert>
+
     <n-tooltip>
       <template #trigger>
         Segments
       </template>
       <span>Number of segments (5-10)</span>
     </n-tooltip>
-    <n-input-number v-model:value="nsegments" :max="10" :min="5">
+    <n-input-number v-model:value="nsegments" :max="10" :min="5" :disabled="loading">
     </n-input-number>
     <n-divider dashed></n-divider>
-    <n-checkbox v-model:checked="nextendedLastDigit">
+    <n-checkbox v-model:checked="nextendedLastDigit" :disabled="loading">
       <n-tooltip>
         <template #trigger>
           <span>Extended last digit</span>
@@ -21,7 +26,7 @@
         <span>Enable if the last digits display is bigger<br>compared to the other digits</span>
       </n-tooltip>
     </n-checkbox><br>
-    <n-checkbox v-model:checked="nlast3DigitsNarrow">
+    <n-checkbox v-model:checked="nlast3DigitsNarrow" :disabled="loading">
       <n-tooltip>
         <template #trigger>
           <span>Last 3 digits are narrow</span>
@@ -29,7 +34,7 @@
         <span>Enable if the last three digits displays are narrower<br>compared to the other digits</span>
       </n-tooltip>
     </n-checkbox><br>
-    <n-checkbox v-model:checked="nrotated180">
+    <n-checkbox v-model:checked="nrotated180" :disabled="loading">
       <n-tooltip>
         <template #trigger>
           <span>180° rotated</span>
@@ -45,6 +50,8 @@
         <n-button
             @click="emits('next')"
             round
+            :disabled="loading"
+            :loading="loading"
         >Next</n-button>
       </n-flex>
     </template>
@@ -52,7 +59,7 @@
 </template>
 
 <script setup>
-import {NCard, NFlex, NInputNumber, NCheckbox, NDivider, NButton, NTooltip} from 'naive-ui';
+import {NCard, NFlex, NInputNumber, NCheckbox, NDivider, NButton, NTooltip, NAlert} from 'naive-ui';
 import {defineProps, defineEmits, ref, watch} from 'vue';
 
 const props = defineProps([
@@ -61,7 +68,9 @@ const props = defineProps([
     'extendedLastDigit',
     'last3DigitsNarrow',
     'encodedLatest',
-    'rotated180'
+    'rotated180',
+    'loading',
+    'noBoundingBox'
 ]);
 const emits = defineEmits(['update', 'next']);
 

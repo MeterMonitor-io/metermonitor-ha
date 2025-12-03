@@ -22,6 +22,8 @@
             :segments="segments"
             :rotated180="rotated180"
             :encoded-latest="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
+            :loading="loading"
+            :no-bounding-box="noBoundingBox"
             @update="updateSegmentationSettings"
             @next="() => nextStep(1)"/>
         <br>
@@ -63,7 +65,7 @@
       style="max-width: 620px"
     >
       <div v-if="currentStep > 2">
-        <EvaluationConfigurator :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null" :max-flow-rate="max_flow_rate" @update="updateMaxFlow" :meterid="id" :timestamp="lastPicture.picture.timestamp"/>
+        <EvaluationConfigurator :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null" :max-flow-rate="max_flow_rate" :loading="loading" @update="updateMaxFlow" :meterid="id" :timestamp="lastPicture.picture.timestamp"/>
          <br>
         <n-alert title="Info" type="info">
           <li>Check the values the model extracted</li>
@@ -86,6 +88,7 @@ import ThresholdPicker from "@/components/ThresholdPicker.vue";
 import EvaluationConfigurator from "@/components/EvaluationConfigurator.vue";
 
 const loading = ref(false);
+const noBoundingBox = ref(false);
 
 const route = useRoute();
 const id = route.params.id;
@@ -95,9 +98,9 @@ const evaluations = ref("");
 
 const currentStep = ref(1);
 const nextStep = (step) => {
-  if (step == 1) {
+  if (step === 1) {
     currentStep.value = 2;
-  } else if (step == 2) {
+  } else if (step === 2) {
     currentStep.value = 3;
   }
 }
@@ -159,10 +162,7 @@ const getData = async () => {
 
 onMounted(() => {
   // check if secret is in local storage
-  const secret = localStorage.getItem('secret');
-  if (secret === null) {
-    router.push({ path: '/unlock' });
-  }
+  loading.value = true;
   getData();
 });
 
@@ -181,13 +181,40 @@ const updateMaxFlow = (data) => {
 }
 
 const reevaluate = async () => {
-  await fetch(host + 'api/reevaluate_latest/' + id, {
-    method: 'GET',
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`,
-    },
-  });
-  getData();
+  loading.value = true;
+  try {
+    const r = await fetch(host + 'api/reevaluate_latest/' + id, {
+      method: 'GET',
+      headers: {
+        'secret': `${localStorage.getItem('secret')}`,
+      },
+    });
+
+    if (r.ok) {
+      let result;
+      try {
+        result = await r.json();
+      } catch (e) {
+        // not JSON, try text
+        const t = await r.text();
+        result = (t === 'true' || t === 'false') ? (t === 'true') : t;
+      }
+
+      if (typeof result === 'boolean') {
+        // endpoint returns boolean true/false
+        noBoundingBox.value = result === false;
+      } else if (typeof result === 'string') {
+        noBoundingBox.value = (result.toLowerCase() === 'false');
+      } else {
+        // unknown payload, do not change flag
+      }
+    }
+  } catch (e) {
+    console.error('reevaluate failed', e);
+  } finally {
+    // Refresh the data (getData will manage loading state)
+    getData();
+  }
 }
 
 const updateSegmentationSettings = async (data) => {

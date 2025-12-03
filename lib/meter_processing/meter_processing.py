@@ -44,7 +44,7 @@ class MeterPredictor:
         """
 
         # run yolo detection
-        results = self.model.predict(input_image, save=False)
+        results = self.model.predict(input_image, save=False, conf=0.15)
         obb_data = results[0].obb
 
         # If no OBB found, bail out

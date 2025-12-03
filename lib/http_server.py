@@ -264,7 +264,7 @@ def prepare_setup_app(config, lifespan):
 
     @app.get("/api/reevaluate_latest/{name}", dependencies=[Depends(authenticate)])
     def reevaluate_latest(name: str):
-        reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config)
+        return (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config) != None)
 
     # GET endpoint for retrieving evaluations
     @app.get("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])

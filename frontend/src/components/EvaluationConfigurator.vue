@@ -6,7 +6,7 @@
       </n-flex>
       <n-flex justify="space-around" size="large">
         <span class="prediction" v-for="[i, digit] in JSON.parse(latestEval)[2].entries()" :key="i + 'd'">
-          {{ (digit[0][0]=='r')? '↕' : digit[0][0] }}
+          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
         </span>
       </n-flex>
       <n-flex justify="space-around" size="large">
@@ -28,14 +28,14 @@
       <n-flex>
         <div style="max-width: 45%">
           Read initial value
-          <n-input-number v-model:value="initialValue" placeholder="Readout" />
+          <n-input-number v-model:value="initialValue" placeholder="Readout" :disabled="loading" />
           <span style="color: rgba(255,255,255,0.3)">{{new Date(timestamp).toLocaleString()}}</span><br>
         </div>
         <div style="max-width: 45%">
           Max. flow rate
           <n-input-number :value="maxFlowRate"
                           @update:value="emit('update', $event)"
-                          placeholder="Flow rate" />
+                          placeholder="Flow rate" :disabled="loading" />
         </div>
       </n-flex>
       <template #action>
@@ -43,6 +43,8 @@
           <n-button
               @click="finishSetup"
               round
+              :disabled="loading"
+              :loading="loading"
           >Finish & save</n-button>
         </n-flex>
       </template>
@@ -61,7 +63,8 @@ const props = defineProps([
     'meterid',
     'latestEval',
     'timestamp',
-    'maxFlowRate'
+    'maxFlowRate',
+    'loading'
 ]);
 
 const initialValue = ref(0);

@@ -61,7 +61,7 @@ class MQTTHandler:
 
         while self.should_reconnect:
             try:
-                print(f"Reconnecting to MQTT broker {self.broker}:{self.port}...")
+                print(f"Reconnecting to MQTT broker...")
                 self.client.reconnect()
                 print("Reconnected successfully")
                 remove_alert("mqtt")
