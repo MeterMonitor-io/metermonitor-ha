@@ -136,9 +136,11 @@ def prepare_setup_app(config, lifespan):
             if label not in allowed:
                 raise HTTPException(status_code=400, detail=f"Invalid label at index {idx}: {label}")
 
-            # ensure label folder exists
-            label_dir = os.path.join(out_root, label)
-            os.makedirs(label_dir, exist_ok=True)
+            # ensure color and th label folders exist
+            color_label_dir = os.path.join(out_root, 'color', label)
+            th_label_dir = os.path.join(out_root, 'th', label)
+            os.makedirs(color_label_dir, exist_ok=True)
+            os.makedirs(th_label_dir, exist_ok=True)
 
             # decode images
             try:
@@ -156,8 +158,8 @@ def prepare_setup_app(config, lifespan):
             crc_hex = f"{crc:08x}"
 
             filename = f"{label}_{meter_name}_{crc_hex}.png"
-            filepath_col = os.path.join(label_dir, filename)
-            filepath_th = os.path.join(label_dir, f"{label}_{meter_name}_{crc_hex}_th.png")
+            filepath_col = os.path.join(color_label_dir, filename)
+            filepath_th = os.path.join(th_label_dir, filename)
 
             # write files
             try:

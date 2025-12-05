@@ -13,14 +13,6 @@
                 <td>
                   {{ new Date(evalDecoded[3]).toLocaleString() }}
                 </td>
-                <td>
-                  <n-button
-                    size="small"
-                    @click="openUploadDialog(evalDecoded[0], evalDecoded[1], name)"
-                  >
-                    Upload Dataset
-                  </n-button>
-                </td>
               </tr>
               <tr>
                 <td style="vertical-align: top;">
@@ -38,6 +30,18 @@
                 </td>
                 <td v-for="(base64, j) in evalDecoded[1]" :key="evalDecoded[3] + '-' + j">
                   <img class="digit" :src="'data:image/png;base64,' + base64" alt="Watermeter" />
+                </td>
+                <td>
+                  <n-button
+                    size="small"
+                    quaternary
+                    circle
+                    @click="openUploadDialog(evalDecoded[0], evalDecoded[1], name)"
+                  >
+                    <template #icon>
+                      <n-icon><ArchiveOutlined /></n-icon>
+                    </template>
+                  </n-button>
                 </td>
               </tr>
               <tr>
@@ -141,7 +145,8 @@
 
 <script setup>
 import { defineProps, h } from 'vue';
-import {NFlex, NTooltip, NEmpty, useDialog} from 'naive-ui';
+import {NFlex, NTooltip, NEmpty, NButton, NIcon, useDialog} from 'naive-ui';
+import { ArchiveOutlined } from '@vicons/material';
 import DatasetUploader from "@/components/DatasetUploader.vue";
 
 const dialog = useDialog();
