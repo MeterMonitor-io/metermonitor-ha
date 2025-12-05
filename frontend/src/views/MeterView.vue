@@ -76,6 +76,33 @@
           </n-list-item>
         </n-list>
       </n-card>
+      <template v-if="data.dataset_present">
+        <br />
+        <n-card size="small">
+          <n-flex justify="space-between" align="center">
+            <b>
+              Dataset
+            </b>
+
+            <n-button type="primary" ghost round >
+              Download
+            </n-button>
+
+            <n-popconfirm @positive-click="deleteMeter">
+              <template #trigger>
+                <n-button type="error" ghost circle>
+                  <template #icon>
+                    <n-icon>
+                      <DeleteForeverFilled />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              This will clear the dataset for this meter. Are you sure?
+            </n-popconfirm>
+          </n-flex>
+        </n-card>
+      </template>
     </div>
     <div style="padding-left: 20px; padding-right: 10px;">
       <EvaluationResultList :decodedEvals="decodedEvals" :name="id"/>
@@ -124,7 +151,8 @@ import { useRoute } from 'vue-router';
 import router from '@/router';
 import ApexChart from 'vue3-apexcharts';
 import EvaluationResultList from "@/components/EvaluationResultList.vue";
-import {NFlex, NCard, NButton, NPopconfirm, NList, NListItem, NThing, NCollapse, NCollapseItem} from "naive-ui";
+import {NFlex, NCard, NButton, NPopconfirm, NList, NListItem, NThing, NCollapse, NCollapseItem, NIcon} from "naive-ui";
+import { DeleteForeverFilled } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 
 const route = useRoute();
