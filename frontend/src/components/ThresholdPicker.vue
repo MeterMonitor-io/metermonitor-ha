@@ -2,8 +2,8 @@
   <n-card>
     <n-flex>
       <div>
-        <n-flex justify="space-around" size="large" v-if="encoded">
-          <img class="digit" v-for="[i,base64] in JSON.parse(encoded)[0].slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" style="height: 50px"/>
+        <n-flex justify="space-around" size="large" v-if="evaluation">
+          <img class="digit" v-for="[i,base64] in evaluation['colored_digits'].slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" style="height: 50px"/>
         </n-flex>
         <br>
         <n-flex justify="space-around" size="large" v-if="tresholdedImages">
@@ -14,8 +14,8 @@
         {{threshold[0]}} - {{threshold[1]}}
       </div>
       <div>
-        <n-flex justify="space-around" size="large" v-if="encoded">
-          <img class="digit" v-for="[i,base64] in JSON.parse(encoded)[0].slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" style="height: 50px"/>
+        <n-flex justify="space-around" size="large" v-if="evaluation">
+          <img class="digit" v-for="[i,base64] in evaluation['colored_digits'].slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" style="height: 50px"/>
         </n-flex>
         <br>
         <n-flex justify="space-around" size="large" v-if="tresholdedImages">
@@ -46,7 +46,7 @@ import {NFlex, NCard, NDivider, NButton, NSlider} from "naive-ui";
 import {defineProps, defineEmits, ref, watch, onMounted} from 'vue';
 
 const props = defineProps([
-    'encoded',
+    'evaluation',
     'threshold',
     'threshold_last',
     'islanding_padding',
@@ -66,7 +66,7 @@ onMounted(() => {
   refreshThresholds();
 });
 
-watch(() => props.encoded, () => {
+watch(() => props.evaluation, () => {
   refreshThresholds();
 });
 watch(() => props.threshold, (newVal) => {
@@ -94,7 +94,7 @@ const refreshThresholds = async () => {
   refreshing.value = true;
 
   let narray = [];
-  const base64s = JSON.parse(props.encoded)[0];
+  const base64s = props.evaluation["colored_digits"];
   for (let j = 0; j < base64s.length; j++) {
     let isLast3 = j >= base64s.length - 3;
     const newBase64 = await thresholdImage(base64s[j], isLast3? nthreshold_last.value : nthreshold.value, islanding_padding.value);

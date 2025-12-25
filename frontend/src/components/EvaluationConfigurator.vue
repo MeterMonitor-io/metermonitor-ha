@@ -1,16 +1,16 @@
 <template>
-  <template v-if="latestEval">
+  <template v-if="evaluation">
     <n-card>
       <n-flex justify="space-around" size="large">
-        <img class="digit" v-for="[i,base64] in JSON.parse(latestEval)[1].entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D" style="height: 50px"/>
+        <img class="digit" v-for="[i,base64] in evaluation['th_digits'].entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D" style="height: 50px"/>
       </n-flex>
       <n-flex justify="space-around" size="large">
-        <span class="prediction" v-for="[i, digit] in JSON.parse(latestEval)[2].entries()" :key="i + 'd'">
+        <span class="prediction" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'd'">
           {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
         </span>
       </n-flex>
       <n-flex justify="space-around" size="large">
-        <span class="confidence" v-for="[i, digit] in JSON.parse(latestEval)[2].entries()" :key="i + 'e'" :style="{color: getColor(digit[0][1])}">
+        <span class="confidence" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'e'" :style="{color: getColor(digit[0][1])}">
           {{ (digit[0][1] * 100).toFixed(2) }}
         </span>
       </n-flex>
@@ -79,7 +79,7 @@ const emit = defineEmits(['update', 'set-loading', 'request-random-example']);
 
 const props = defineProps([
     'meterid',
-    'latestEval',
+    'evaluation',
     'timestamp',
     'maxFlowRate',
     'loading',

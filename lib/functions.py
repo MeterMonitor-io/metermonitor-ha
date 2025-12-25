@@ -76,7 +76,7 @@ def request_random_exampleset(db_file: str, name: str, meter_preditor, config):
 
 
 # This file reevaluates the latest picture of a watermeter and saves the result in the database.
-def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, publish: bool = False, store_to_db = True, mqtt_client = None):
+def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, publish: bool = False, skip_setup_overwriting = True, mqtt_client = None):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
 
@@ -168,7 +168,33 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                 if publish and mqtt_client:
                     publish_value(mqtt_client, config, name, value)
 
-        if store_to_db:
+        curser = cursor.execute('''
+            SELECT COUNT(*) FROM evaluations  
+            WHERE name = ?
+        ''', (name,))
+        count = curser.fetchone()[0]
+
+        if not skip_setup_overwriting and count > 0:
+            # replace the last evaluation if setup is not finished instead of adding a new one
+            cursor.execute('''
+                           UPDATE evaluations
+                           SET colored_digits = ?,
+                               th_digits = ?,
+                               predictions = ?,
+                               timestamp = ?,
+                               result = ?,
+                               total_confidence = ?
+                           WHERE name = ?
+                           ''', (
+                               json.dumps(result) if result is not None else None,
+                               json.dumps(processed) if processed is not None else None,
+                               json.dumps(prediction) if prediction is not None else None,
+                               timestamp if isinstance(timestamp, str) and timestamp.strip() else None,
+                               value if value is not None else None,
+                               float(confidence) if confidence is not None else None,
+                               name
+                           ))
+        else:
             cursor.execute('''
                            INSERT INTO evaluations
                            (name, colored_digits, th_digits, predictions, timestamp, result, total_confidence)
@@ -183,18 +209,18 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                float(confidence) if confidence is not None else None
                            ))
 
-            # remove old evaluations
-            cursor.execute('''
-                       DELETE FROM evaluations
+        # remove old evaluations
+        cursor.execute('''
+                   DELETE FROM evaluations
+                   WHERE name = ?
+                   AND ROWID NOT IN (
+                       SELECT ROWID
+                       FROM evaluations
                        WHERE name = ?
-                       AND ROWID NOT IN (
-                           SELECT ROWID
-                           FROM evaluations
-                           WHERE name = ?
-                           ORDER BY ROWID DESC
-                           LIMIT ?
-                       )
-                   ''', (name, name, config['max_evals']))
+                       ORDER BY ROWID DESC
+                       LIMIT ?
+                   )
+               ''', (name, name, config['max_evals']))
 
         conn.commit()
 
@@ -238,7 +264,7 @@ def add_history_entry(db_file: str, name: str, value: int, confidence:int, targe
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO history
+            INSERT INTO history (name, value, confidence, target_brightness, timestamp, manual)
             VALUES (?,?,?,?,?,?)
         ''', (
             name,

@@ -276,7 +276,7 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute("UPDATE watermeters SET setup = 1 WHERE name = ?", (name,))
         db.commit()
-        target_brightness, confidence = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, store_to_db=False)
+        target_brightness, confidence = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False)
         add_history_entry(config['dbfile'], name, data.value, 1, target_brightness, data.timestamp, config, manual=True)
 
         # clear evaluations
@@ -408,7 +408,7 @@ def prepare_setup_app(config, lifespan):
 
     @app.get("/api/reevaluate_latest/{name}", dependencies=[Depends(authenticate)])
     def reevaluate_latest(name: str):
-        return (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, store_to_db=False) != None)
+        return (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False) != None)
 
     @app.get("/api/request_random_example/{name}", dependencies=[Depends(authenticate)])
     def request_random_example(name: str):
@@ -428,7 +428,7 @@ def prepare_setup_app(config, lifespan):
 
         # Build query with optional pagination
         query = """
-            SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence
+            SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence, outdated
             FROM evaluations
             WHERE name = ?
             ORDER BY id DESC

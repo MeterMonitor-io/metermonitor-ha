@@ -40,7 +40,7 @@
     >
       <div v-if="currentStep > 1" :style="{opacity: (currentStep > 2)?0.7:1.0}">
         <ThresholdPicker
-            :encoded="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
+            :evaluation="evaluation"
             :run="tresholdedImages[tresholdedImages.length-1]"
             :threshold="threshold"
             :threshold_last="threshold_last"
@@ -67,7 +67,7 @@
     >
       <div v-if="currentStep > 2">
         <EvaluationConfigurator
-            :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
+            :evaluation="evaluation"
             :max-flow-rate="max_flow_rate" :loading="loading"
             @update="updateMaxFlow"
             @set-loading="setLoading" :on-set-loading="setLoading"
