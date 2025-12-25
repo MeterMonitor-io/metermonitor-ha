@@ -117,6 +117,7 @@ const tresholdedImages = computed(() => {
 });
 
 onMounted(() => {
+  setupStore.reset();
   setupStore.getData(id);
 });
 </script>

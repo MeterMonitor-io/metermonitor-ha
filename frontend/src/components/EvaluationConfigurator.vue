@@ -2,45 +2,34 @@
   <template v-if="evaluation">
     <n-card>
       <n-flex justify="space-around" size="large">
-        <img class="digit" v-for="[i,base64] in evaluation['th_digits'].entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D" style="height: 50px"/>
+        <img class="digit" v-for="[i,base64] in evaluation['th_digits'].entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D"/>
       </n-flex>
       <n-flex justify="space-around" size="large">
-        <span class="prediction" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'd'">
+        <span class="prediction google-sans-code" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'd'">
           {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
         </span>
       </n-flex>
       <n-flex justify="space-around" size="large">
-        <span class="confidence" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'e'" :style="{color: getColor(digit[0][1])}">
-          {{ (digit[0][1] * 100).toFixed(2) }}
+        <span class="confidence google-sans-code" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'e'" :style="{color: getColor(digit[0][1])}">
+          {{ (digit[0][1] * 100).toFixed(1) }}
         </span>
       </n-flex>
-      <template v-if="randomExamples">
-        <template  v-for="[i, example] in randomExamples.entries()" :key="i + 'example'">
-          <n-flex justify="space-around" size="large">
-            <img class="digit" v-for="[i,base64] in example['processed_images'].entries()" :key="i + 'x'" :src="'data:image/png;base64,' + base64" alt="D" style="height: 50px"/>
-          </n-flex>
-          <n-flex justify="space-around" size="large">
-            <span class="prediction" v-for="[i, digit] in example['predictions'].entries()" :key="i + 'y'">
-              {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
+      <n-divider />
+      <n-grid v-if="randomExamples" :cols="15" y-gap="4">
+        <template v-for="[i, example] in randomExamples.entries()" :key="i + 'example'">
+          <n-gi justify="space-around" size="small" v-for="[i,base64] in example['processed_images'].entries()" :key="i + 'x'" class="grid-container">
+            <img
+                class="digit_small"
+                :src="'data:image/png;base64,' + base64"
+                alt="D"
+            />
+            <br>
+            <span class="prediction_small" :style="{color: getColor(example['predictions'][i][0][1])}">
+              {{ (example['predictions'][i][0][0]==='r')? '↕' : example['predictions'][i][0][0] }}
             </span>
-          </n-flex>
-          <n-flex justify="space-around" size="large">
-            <span class="confidence" v-for="[i, digit] in example['predictions'].entries()" :key="i + 'z'" :style="{color: getColor(digit[0][1])}">
-              {{ (digit[0][1] * 100).toFixed(2) }}
-            </span>
-          </n-flex>
+          </n-gi>
         </template>
-      </template>
-      <n-flex justify="space-around" size="large">
-        <n-button quaternary @click="emit('request-random-example', null)" round :disabled="loading">
-          <template #icon>
-            <n-icon>
-              <ShuffleFilled />
-            </n-icon>
-          </template>
-          New random example
-        </n-button>
-      </n-flex>
+      </n-grid>
       <n-divider />
       <n-flex>
         <div style="max-width: 45%">
@@ -71,7 +60,7 @@
 
 <script setup>
 import {defineProps, ref, defineEmits} from 'vue';
-import {NFlex, NCard, NButton, NInputNumber, NDivider, NIcon, useDialog} from 'naive-ui';
+import {NFlex, NCard, NButton, NInputNumber, NDivider, NIcon, NGrid, NGi, useDialog} from 'naive-ui';
 import router from "@/router";
 import { ShuffleFilled } from '@vicons/material';
 
@@ -158,6 +147,14 @@ function getColor(value) {
 <style scoped>
 .digit{
   margin: 3px;
+  width: 24px;
+  height: auto;
+}
+
+.digit_small{
+  margin: 0px;
+  width: 16px;
+  height: auto;
 }
 
 .prediction{
@@ -165,8 +162,18 @@ function getColor(value) {
   font-size: 20px;
 }
 
+.prediction_small{
+  margin-top: -5px;
+  font-size: 20px;
+}
+
 .confidence{
   margin: 3px;
   font-size: 10px;
+}
+
+.grid-container{
+  text-align: center;
+  line-height: 0.9;
 }
 </style>

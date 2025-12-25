@@ -61,4 +61,12 @@ body{
   background: #f3f3f3;
   color: #292929;
 }
+
+.google-sans-code {
+  font-family: "Google Sans Code", monospace;
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-style: normal;
+}
+
 </style>

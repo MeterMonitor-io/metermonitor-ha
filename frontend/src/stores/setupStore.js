@@ -9,6 +9,7 @@ export const useSetupStore = defineStore('setup', () => {
   const randomExamples = ref([]);
   const noBoundingBox = ref(false);
   const loading = ref(false);
+  const loadingCancelled = ref(false);
 
   // Actions
   const nextStep = (step) => {
@@ -30,7 +31,8 @@ export const useSetupStore = defineStore('setup', () => {
     watermeterStore.thresholdLast = data.threshold_last;
     watermeterStore.islandingPadding = data.islanding_padding;
 
-    // Clear random examples
+    // Cancel any ongoing loading and clear random examples
+    loadingCancelled.value = true;
     randomExamples.value = [];
 
     await watermeterStore.updateSettings(meterId);
@@ -46,6 +48,9 @@ export const useSetupStore = defineStore('setup', () => {
   const updateSegmentationSettings = async (data, meterId) => {
     const watermeterStore = useWatermeterStore();
     
+    // Cancel any ongoing loading
+    loadingCancelled.value = true;
+
     watermeterStore.segments = data.segments;
     watermeterStore.extendedLastDigit = data.extendedLastDigit;
     watermeterStore.last3DigitsNarrow = data.last3DigitsNarrow;
@@ -55,7 +60,15 @@ export const useSetupStore = defineStore('setup', () => {
     await reevaluate(meterId);
   };
 
+  const clearEvaluationExamples = (meterId = null) => {
+    randomExamples.value = [];
+    if(meterId) requestReevaluatedDigits(meterId);
+  }
+
   const reevaluate = async (meterId) => {
+    // Cancel any ongoing loading
+    loadingCancelled.value = true;
+
     loading.value = true;
     try {
       const response = await apiService.post(`api/watermeters/${meterId}/evaluations/reevaluate`);
@@ -77,25 +90,46 @@ export const useSetupStore = defineStore('setup', () => {
       const watermeterStore = useWatermeterStore();
       await watermeterStore.fetchAll(meterId);
       loading.value = false;
+      clearEvaluationExamples(meterId);
     }
   };
 
-  const requestReevaluatedDigits = async (meterId, offset = null) => {
+  const requestReevaluatedDigits = async (meterId, amount = 10) => {
+    // Clear existing examples and reset cancellation flag
+    randomExamples.value = [];
+    loadingCancelled.value = false;
     loading.value = true;
+
     try {
-      const url = offset !== null
-        ? `api/watermeters/${meterId}/evaluations/sample/${offset}`
-        : `api/watermeters/${meterId}/evaluations/sample`;
-      const response = await apiService.post(url);
-      if (response.ok) {
-        const result = await response.json();
-
-        if (result.error) {
-          console.error('get_reevaluated_digits error', result.error);
-          return;
+      // Load samples with increasing offset (0 to amount-1)
+      for (let offset = 0; offset < amount; offset++) {
+        // Check if loading was cancelled
+        if (loadingCancelled.value) {
+          console.log('Sample loading cancelled');
+          break;
         }
-        randomExamples.value.push(result);
 
+        const url = `api/watermeters/${meterId}/evaluations/sample/${offset}`;
+        const response = await apiService.post(url);
+
+        if (response.ok) {
+          const result = await response.json();
+
+          if (result.error) {
+            console.error('get_reevaluated_digits error', result.error);
+            // Stop loading on error
+            break;
+          }
+
+          // Only add if not cancelled
+          if (!loadingCancelled.value) {
+            randomExamples.value.push(result);
+          }
+        } else {
+          console.error('Failed to fetch sample at offset', offset);
+          // Stop loading if request fails
+          break;
+        }
       }
     } catch (e) {
       console.error('get_reevaluated_digits failed', e);
@@ -111,6 +145,14 @@ export const useSetupStore = defineStore('setup', () => {
     loading.value = false;
   };
 
+  const reset = () => {
+    currentStep.value = 1;
+    randomExamples.value = [];
+    noBoundingBox.value = false;
+    loading.value = false;
+    loadingCancelled.value = false;
+  }
+
   return {
     // State
     currentStep,
@@ -118,11 +160,13 @@ export const useSetupStore = defineStore('setup', () => {
     noBoundingBox,
     loading,
     // Actions
+    reset,
     nextStep,
     setLoading,
     updateThresholds,
     updateMaxFlow,
     updateSegmentationSettings,
+    clearEvaluationExamples,
     reevaluate,
     requestReevaluatedDigits,
     getData,
