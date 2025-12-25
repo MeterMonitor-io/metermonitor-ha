@@ -4,11 +4,79 @@ import json
 
 from PIL import Image
 from io import BytesIO
+import numpy as np
 
 from lib.history_correction import correct_value
 
+def request_random_exampleset(db_file: str, name: str, meter_preditor, config):
+    with sqlite3.connect(db_file) as conn:
+        cursor = conn.cursor()
+
+        # Get a random eval from the database
+        cursor.execute('''
+            SELECT eval FROM evaluations
+            WHERE name = ?
+            ORDER BY RANDOM()
+            LIMIT 1
+        ''', (name,))
+        row = cursor.fetchone()
+        if not row:
+            print(f"[ExampleSet ({name})] No evaluations found for {name}")
+            return {"error": "No evaluations found"}
+
+        # parse the eval (json)
+        eval = json.loads(row[0])
+        raw_images = eval[0]
+        print (f"[ExampleSet ({name})] Found example set, {len(raw_images)} images")
+
+        # convert to np arrays (from base64)
+        digits = []
+        for raw_image in raw_images:
+            image_data = base64.b64decode(raw_image)
+            image = Image.open(BytesIO(image_data))
+            digits.append(np.array(image))
+        print(digits)
+
+        # Get current settings for the watermeter
+        cursor.execute('''
+                       SELECT threshold_low,
+                              threshold_high,
+                              threshold_last_low,
+                              threshold_last_high,
+                              islanding_padding,
+                              segments,
+                              shrink_last_3,
+                              extended_last_digit,
+                              max_flow_rate,
+                              rotated_180
+                       FROM settings
+                       WHERE name = ?
+                       ''', (name,))
+        settings = cursor.fetchone()
+        if not settings:
+            print(f"[ExampleSet ({name})] No settings found for {name}")
+            return {"error": "Error fetching settings"}
+        thresholds = [settings[0], settings[1]]
+        thresholds_last = [settings[2], settings[3]]
+        islanding_padding = settings[4]
+
+        if len(thresholds) == 0:
+            print(f"[Eval ({name})] No thresholds found for {name}")
+            return {"error": "No thresholds found"}
+        else:
+            processed, digits = meter_preditor.apply_thresholds(digits, thresholds, thresholds_last, islanding_padding)
+            prediction, _ = meter_preditor.predict_digits(digits)
+
+        return {
+            "processed_images": processed,
+            "predictions": prediction
+        }
+
+
+
+
 # This file reevaluates the latest picture of a watermeter and saves the result in the database.
-def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, publish: bool = False, mqtt_client = None):
+def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, publish: bool = False, store_to_db = True, mqtt_client = None):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
 
@@ -100,26 +168,33 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                 if publish and mqtt_client:
                     publish_value(mqtt_client, config, name, value)
 
-        cursor.execute('''
-                   INSERT INTO evaluations
-                   VALUES (?,?)
-               ''', (
-            name,
-            json.dumps([result, processed, prediction, timestamp, value, second_model_results, confidence])
-        ))
+        if store_to_db:
+            cursor.execute('''
+                           INSERT INTO evaluations
+                           (name, colored_digits, th_digits, predictions, timestamp, result, total_confidence)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)
+                           ''', (
+                               name,
+                               json.dumps(result) if result is not None else None,
+                               json.dumps(processed) if processed is not None else None,
+                               json.dumps(prediction) if prediction is not None else None,
+                               timestamp if isinstance(timestamp, str) and timestamp.strip() else None,
+                               value if value is not None else None,
+                               float(confidence) if confidence is not None else None
+                           ))
 
-        # remove old evaluations (keep 5)
-        cursor.execute('''
-                   DELETE FROM evaluations
-                   WHERE name = ?
-                   AND ROWID NOT IN (
-                       SELECT ROWID
-                       FROM evaluations
+            # remove old evaluations
+            cursor.execute('''
+                       DELETE FROM evaluations
                        WHERE name = ?
-                       ORDER BY ROWID DESC
-                       LIMIT ?
-                   )
-               ''', (name, name, config['max_evals']))
+                       AND ROWID NOT IN (
+                           SELECT ROWID
+                           FROM evaluations
+                           WHERE name = ?
+                           ORDER BY ROWID DESC
+                           LIMIT ?
+                       )
+                   ''', (name, name, config['max_evals']))
 
         conn.commit()
 

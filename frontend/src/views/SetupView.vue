@@ -21,7 +21,7 @@
             :last-3-digits-narrow="last3DigitsNarrow"
             :segments="segments"
             :rotated180="rotated180"
-            :encoded-latest="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
+            :evaluation="evaluation"
             :loading="loading"
             :no-bounding-box="noBoundingBox"
             @update="updateSegmentationSettings"
@@ -66,7 +66,16 @@
       style="max-width: 620px"
     >
       <div v-if="currentStep > 2">
-        <EvaluationConfigurator :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null" :max-flow-rate="max_flow_rate" :loading="loading" @update="updateMaxFlow" @set-loading="setLoading" :on-set-loading="setLoading" :meterid="id" :timestamp="lastPicture.picture.timestamp"/>
+        <EvaluationConfigurator
+            :latest-eval="evaluations.evals?evaluations.evals[evaluations.evals.length-1]:null"
+            :max-flow-rate="max_flow_rate" :loading="loading"
+            @update="updateMaxFlow"
+            @set-loading="setLoading" :on-set-loading="setLoading"
+            @request-random-example="requestRandomExample"
+            :meterid="id"
+            :timestamp="lastPicture.picture.timestamp"
+            :randomExamples="randomExamples"
+        />
          <br>
         <n-alert title="Info" type="info">
           <li>Check the values the model extracted</li>
@@ -95,7 +104,8 @@ const route = useRoute();
 const id = route.params.id;
 
 const lastPicture = ref("");
-const evaluations = ref("");
+const evaluation = ref(null);
+const randomExamples = ref([]);
 
 const currentStep = ref(1);
 const nextStep = (step) => {
@@ -130,7 +140,7 @@ const getData = async () => {
   });
   lastPicture.value = await response.json();
 
-  response = await fetch(host + 'api/watermeters/' + id + '/evals', {
+  response = await fetch(host + 'api/watermeters/' + id + '/evals?amount=1', {
     headers: {
       'secret': `${localStorage.getItem('secret')}`
     }
@@ -138,7 +148,8 @@ const getData = async () => {
   if (response.status === 401) {
     router.push({path: '/unlock'});
   }
-  evaluations.value = await response.json();
+  const evals = await response.json();
+  evaluation.value = evals.evals && evals.evals.length > 0 ? evals.evals[0] : null;
 
   response = await fetch(host + 'api/settings/' + id, {
     headers: {
@@ -185,6 +196,9 @@ const updateThresholds = (data) => {
   threshold_last.value = data.threshold_last;
   islanding_padding.value = data.islanding_padding;
 
+  // clear random examples
+  randomExamples.value = [];
+
   updateSettings();
 }
 
@@ -197,6 +211,35 @@ const updateMaxFlow = (data) => {
 const setLoading = (v) => {
   console.debug('SetupView setLoading ->', v);
   loading.value = v;
+}
+
+const requestRandomExample = async () => {
+  // Request a set of new random historic images for threshold evaluation
+  loading.value = true;
+  try {
+    const data = await fetch(host + 'api/request_random_example/' + id, {
+      method: 'GET',
+      headers: {
+        'secret': `${localStorage.getItem('secret')}`,
+      },
+    });
+
+    if (data.ok) {
+
+      if (data["error"]) {
+        console.error('requestRandomExample error', data["error"]);
+        return;
+      }
+
+      const result = await data.json();
+      randomExamples.value.push(result);
+    }
+  } catch (e) {
+    console.error('requestRandomExample failed', e);
+  }
+  finally {
+    loading.value = false;
+  }
 }
 
 const reevaluate = async () => {

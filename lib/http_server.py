@@ -1,3 +1,4 @@
+import json
 import os
 from io import BytesIO
 import shutil
@@ -18,7 +19,7 @@ from typing import List
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, FileResponse, StreamingResponse
 
-from lib.functions import reevaluate_latest_picture, add_history_entry
+from lib.functions import reevaluate_latest_picture, add_history_entry, request_random_exampleset
 from lib.meter_processing.meter_processing import MeterPredictor
 from lib.global_alerts import get_alerts, add_alert
 
@@ -275,12 +276,12 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute("UPDATE watermeters SET setup = 1 WHERE name = ?", (name,))
         db.commit()
-        target_brightness, confidence = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config)
+        target_brightness, confidence = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, store_to_db=False)
         add_history_entry(config['dbfile'], name, data.value, 1, target_brightness, data.timestamp, config, manual=True)
 
         # clear evaluations
         cursor = db.cursor()
-        cursor.execute("DELETE FROM evaluations WHERE name = ?", (name,))
+        cursor.execute("UPDATE evaluations SET outdated = true WHERE name = ?", (name,))
         db.commit()
 
         return {"message": "Setup completed"}
@@ -407,20 +408,50 @@ def prepare_setup_app(config, lifespan):
 
     @app.get("/api/reevaluate_latest/{name}", dependencies=[Depends(authenticate)])
     def reevaluate_latest(name: str):
-        return (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config) != None)
+        return (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, store_to_db=False) != None)
+
+    @app.get("/api/request_random_example/{name}", dependencies=[Depends(authenticate)])
+    def request_random_example(name: str):
+        # returns a set of random digits from historic evaluations for the given watermeter, evaluated with the current settings
+        return request_random_exampleset(config['dbfile'], name, meter_preditor, config)
 
     # GET endpoint for retrieving evaluations
     @app.get("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])
-    def get_evals(name: str):
+    def get_evals(name: str, amount: int = None, from_index: int = None):
         cursor = db_connection().cursor()
         # Check if watermeter exists
         cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Watermeter not found")
         # Retrieve all evaluations for the watermeter
-        cursor.execute("SELECT eval FROM evaluations WHERE name = ?", (name,))
-        evals = [row[0] for row in cursor.fetchall()]
-        return {"evals": evals}
+        cursor = db_connection().cursor()
+
+        # Build query with optional pagination
+        query = """
+            SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence
+            FROM evaluations
+            WHERE name = ?
+            ORDER BY id DESC
+        """
+        params = [name]
+
+        if amount is not None:
+            query += " LIMIT ?"
+            params.append(amount)
+            if from_index is not None:
+                query += " OFFSET ?"
+                params.append(from_index)
+
+        cursor.execute(query, params)
+        return {"evals": [{
+            "colored_digits": json.loads(row[0]) if row[0] else None,
+            "th_digits": json.loads(row[1]) if row[1] else None,
+            "predictions": json.loads(row[2]) if row[2] else None,
+            "timestamp": row[3],
+            "result": row[4],
+            "total_confidence": row[5],
+            "outdated": row[6]
+        } for row in cursor.fetchall()]}
 
     # POST endpoint for adding an evaluation
     @app.post("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])

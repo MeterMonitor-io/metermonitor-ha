@@ -42,9 +42,9 @@
         <span>Enable if the captured image is rotated 180°</span>
       </n-tooltip>
     </n-checkbox><br>
-    <template #action v-if="nencodedLatest">
+    <template #action v-if="nEvaluation">
       <n-flex justify="space-around" size="large">
-        <img class="digit" v-for="base64 in JSON.parse(nencodedLatest)[0]" :src="'data:image/png;base64,' + base64" :key="base64" alt="D" style="max-width: 40px"/>
+        <img class="digit" v-for="base64 in nEvaluation['colored_digits']" :src="'data:image/png;base64,' + base64" :key="base64" alt="D" style="max-width: 40px"/>
       </n-flex><br>
       <n-flex justify="end" size="large">
         <n-button
@@ -67,7 +67,7 @@ const props = defineProps([
     'segments',
     'extendedLastDigit',
     'last3DigitsNarrow',
-    'encodedLatest',
+    'evaluation',
     'rotated180',
     'loading',
     'noBoundingBox'
@@ -83,8 +83,8 @@ watch(() => props.extendedLastDigit, (newVal) => {
 watch(() => props.last3DigitsNarrow, (newVal) => {
   nlast3DigitsNarrow.value = newVal;
 });
-watch(() => props.encodedLatest, (newVal) => {
-  nencodedLatest.value = newVal;
+watch(() => props.evaluation, (newVal) => {
+  nEvaluation.value = newVal;
 });
 watch(() => props.rotated180, (newVal) => {
   nrotated180.value = newVal;
@@ -93,8 +93,8 @@ watch(() => props.rotated180, (newVal) => {
 const nsegments = ref(props.segments);
 const nextendedLastDigit = ref(props.extendedLastDigit);
 const nlast3DigitsNarrow = ref(props.last3DigitsNarrow);
-const nencodedLatest = ref(props.encodedLatest);
-const nrotated180 = ref(props.mirroredVertically);
+const nEvaluation = ref(props.evaluation);
+const nrotated180 = ref(props.rotated180);
 
 watch([nsegments, nextendedLastDigit, nlast3DigitsNarrow, nrotated180], () => {
   emits('update', {

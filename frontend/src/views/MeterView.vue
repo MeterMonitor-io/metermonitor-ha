@@ -76,7 +76,7 @@
           </n-list-item>
         </n-list>
       </n-card>
-      <template v-if="data.dataset_present">
+      <template v-if="data && data.dataset_present">
         <br />
         <n-card size="small">
           <n-flex justify="space-between" align="center">

@@ -11,7 +11,7 @@
   "ingress_port": 8070,
   "options": {
     "max_history": 200,
-    "max_evals": 30,
+    "max_evals": 100,
     "mqtt": {
       "broker": "172.30.32.1",
       "port": 1883,

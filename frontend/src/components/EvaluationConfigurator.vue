@@ -14,15 +14,32 @@
           {{ (digit[0][1] * 100).toFixed(2) }}
         </span>
       </n-flex>
+      <template v-if="randomExamples">
+        <template  v-for="[i, example] in randomExamples.entries()" :key="i + 'example'">
+          <n-flex justify="space-around" size="large">
+            <img class="digit" v-for="[i,base64] in example['processed_images'].entries()" :key="i + 'x'" :src="'data:image/png;base64,' + base64" alt="D" style="height: 50px"/>
+          </n-flex>
+          <n-flex justify="space-around" size="large">
+            <span class="prediction" v-for="[i, digit] in example['predictions'].entries()" :key="i + 'y'">
+              {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
+            </span>
+          </n-flex>
+          <n-flex justify="space-around" size="large">
+            <span class="confidence" v-for="[i, digit] in example['predictions'].entries()" :key="i + 'z'" :style="{color: getColor(digit[0][1])}">
+              {{ (digit[0][1] * 100).toFixed(2) }}
+            </span>
+          </n-flex>
+        </template>
+      </template>
       <n-flex justify="space-around" size="large">
-        <span class="prediction" v-for="[i, digit] in JSON.parse(latestEval)[5].entries()" :key="i + 'c'">
-          {{ digit?digit[0]:'' }}
-        </span>
-      </n-flex>
-      <n-flex justify="space-around" size="large">
-        <span class="confidence" v-for="[i, digit] in JSON.parse(latestEval)[5].entries()" :key="i + 'c'" :style="{color: getColor(digit?digit[1]:0)}">
-          {{ digit?digit[1]:'' }}
-        </span>
+        <n-button quaternary @click="emit('request-random-example', null)" round :disabled="loading">
+          <template #icon>
+            <n-icon>
+              <ShuffleFilled />
+            </n-icon>
+          </template>
+          New random example
+        </n-button>
       </n-flex>
       <n-divider />
       <n-flex>
@@ -54,10 +71,11 @@
 
 <script setup>
 import {defineProps, ref, defineEmits} from 'vue';
-import {NFlex, NCard, NButton, NInputNumber, NDivider, useDialog} from 'naive-ui';
+import {NFlex, NCard, NButton, NInputNumber, NDivider, NIcon, useDialog} from 'naive-ui';
 import router from "@/router";
+import { ShuffleFilled } from '@vicons/material';
 
-const emit = defineEmits(['update', 'set-loading']);
+const emit = defineEmits(['update', 'set-loading', 'request-random-example']);
 
 const props = defineProps([
     'meterid',
@@ -65,7 +83,8 @@ const props = defineProps([
     'timestamp',
     'maxFlowRate',
     'loading',
-    'onSetLoading'
+    'onSetLoading',
+    'randomExamples'
 ]);
 
 const initialValue = ref(0);

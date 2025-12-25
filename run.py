@@ -7,6 +7,7 @@ import uvicorn
 import json
 from fastapi import FastAPI
 
+from db.migrations import run_migrations
 from lib.http_server import prepare_setup_app
 from lib.mqtt_handler import MQTTHandler
 
@@ -95,6 +96,10 @@ cursor.execute('''
             )
         ''')
 db_connection.commit()
+
+# Run migrations
+run_migrations(config['dbfile'])
+
 MQTT_CONFIG = config['mqtt']
 
 # start application. if http is enabled, start the http server
