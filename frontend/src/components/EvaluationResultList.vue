@@ -5,8 +5,8 @@
       </n-empty>
     </div>
     <template v-else>
-      <template v-for="[i, evaluation] in evaluations.entries()" :key="i">
-        <n-flex :class="{ redbg: evaluation.result == null, econtainer: true, outdated: evaluation.outdated }">
+      <div v-for="[i, evaluation] in evaluations.entries()" :key="i" :class="{outdated: evaluation.outdated}">
+        <n-flex :class="{ redbg: evaluation.result == null, econtainer: true }">
           <table>
             <tbody>
               <tr>
@@ -113,7 +113,7 @@
             </tbody>
           </table>
         </n-flex>
-      </template>
+      </div>
     </template>
   </div>
 </template>
@@ -216,7 +216,7 @@ const openUploadDialog = (colored, thresholded, name, values) => {
 }
 
 .outdated {
-  opacity: 0.6;
+  filter: brightness(0.7);
 }
 
 </style>

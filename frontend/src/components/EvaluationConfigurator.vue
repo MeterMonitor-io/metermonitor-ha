@@ -103,11 +103,13 @@ const finishSetup = async () => {
     return;
   }
 
-  // notify parent to show global loading
-  // prefer direct function prop, then emit, then global event
-  try { if (props.onSetLoading) props.onSetLoading(true); } catch (e) {}
-  emit('set-loading', true);
-  try { window.dispatchEvent(new CustomEvent('global-set-loading', { detail: true })); } catch (e) {}
+  // notify parent to show loading
+  if (props.onSetLoading) {
+    props.onSetLoading(true);
+  } else {
+    emit('set-loading', true);
+  }
+
   try {
     // post to /api/setup/{name}/finish
     const r = await fetch(host + 'api/setup/' + props.meterid + '/finish', {
@@ -131,9 +133,11 @@ const finishSetup = async () => {
     console.error('finishSetup failed', e);
   } finally {
     // ensure parent loading is turned off if we didn't navigate away
-    try { if (props.onSetLoading) props.onSetLoading(false); } catch (e) {}
-    emit('set-loading', false);
-    try { window.dispatchEvent(new CustomEvent('global-set-loading', { detail: false })); } catch (e) {}
+    if (props.onSetLoading) {
+      props.onSetLoading(false);
+    } else {
+      emit('set-loading', false);
+    }
   }
 
 }

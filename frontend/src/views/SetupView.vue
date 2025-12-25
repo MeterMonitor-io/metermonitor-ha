@@ -43,8 +43,8 @@
             :evaluation="evaluation"
             :run="tresholdedImages[tresholdedImages.length-1]"
             :threshold="threshold"
-            :threshold_last="threshold_last"
-            :islanding_padding="islanding_padding"
+            :threshold_last="thresholdLast"
+            :islanding_padding="islandingPadding"
             :loading="loading"
             @update="updateThresholds"
             @reevaluate="reevaluate"
@@ -68,7 +68,7 @@
       <div v-if="currentStep > 2">
         <EvaluationConfigurator
             :evaluation="evaluation"
-            :max-flow-rate="max_flow_rate" :loading="loading"
+            :max-flow-rate="maxFlowRate" :loading="loading"
             @update="updateMaxFlow"
             @set-loading="setLoading" :on-set-loading="setLoading"
             @request-random-example="requestRandomExample"
@@ -89,232 +89,46 @@
 </template>
 
 <script setup>
-import {onMounted, ref, onUnmounted} from 'vue';
-import router from "@/router";
+import { onMounted, computed } from 'vue';
 import { NSteps, NStep, NButton, NAlert, NFlex, NH2 } from 'naive-ui';
 import { useRoute } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useWatermeterStore } from '@/stores/watermeterStore';
+import { useSetupStore } from '@/stores/setupStore';
 import SegmentationConfigurator from "@/components/SegmentationConfigurator.vue";
 import ThresholdPicker from "@/components/ThresholdPicker.vue";
 import EvaluationConfigurator from "@/components/EvaluationConfigurator.vue";
 
-const loading = ref(false);
-const noBoundingBox = ref(false);
-
 const route = useRoute();
 const id = route.params.id;
 
-const lastPicture = ref("");
-const evaluation = ref(null);
-const randomExamples = ref([]);
+// Initialize stores
+const watermeterStore = useWatermeterStore();
+const setupStore = useSetupStore();
 
-const currentStep = ref(1);
-const nextStep = (step) => {
-  if (step === 1) {
-    currentStep.value = 2;
-  } else if (step === 2) {
-    currentStep.value = 3;
-  }
-}
+// Get reactive state from stores
+const { lastPicture, evaluation, threshold, thresholdLast, islandingPadding,
+        segments, extendedLastDigit, last3DigitsNarrow, rotated180, maxFlowRate } = storeToRefs(watermeterStore);
+const { currentStep, randomExamples, noBoundingBox, loading } = storeToRefs(setupStore);
 
-const threshold = ref([0, 100]);
-const threshold_last = ref([0, 100]);
-const islanding_padding = ref(0);
-
-const tresholdedImages = ref([]);
-
-const segments = ref(0);
-const extendedLastDigit = ref(false);
-const last3DigitsNarrow = ref(false);
-const rotated180 = ref(false);
-const max_flow_rate = ref(1.0);
-
-const host = import.meta.env.VITE_HOST;
-
-
-const getData = async () => {
-  loading.value = true;
-  let response = await fetch(host + 'api/watermeters/' + id, {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
-  });
-  lastPicture.value = await response.json();
-
-  response = await fetch(host + 'api/watermeters/' + id + '/evals?amount=1', {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
-  });
-  if (response.status === 401) {
-    router.push({path: '/unlock'});
-  }
-  const evals = await response.json();
-  evaluation.value = evals.evals && evals.evals.length > 0 ? evals.evals[0] : null;
-
-  response = await fetch(host + 'api/settings/' + id, {
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`
-    }
-  });
-
-  let result = await response.json();
-
-  threshold.value = [result.threshold_low, result.threshold_high];
-  threshold_last.value = [result.threshold_last_low, result.threshold_last_high];
-  islanding_padding.value = result.islanding_padding;
-
-  segments.value = result.segments;
-  extendedLastDigit.value = result.extended_last_digit === 1;
-  last3DigitsNarrow.value = result.shrink_last_3 === 1;
-  rotated180.value = result.rotated_180 === 1;
-  max_flow_rate.value = result.max_flow_rate;
-
-  loading.value = false;
-}
+// Computed property for tresholdedImages (keeping backwards compatibility)
+const tresholdedImages = computed(() => {
+  return evaluation.value?.tresholded_images || [];
+});
 
 onMounted(() => {
-  // check if secret is in local storage
-  loading.value = true;
-  getData();
-
-  // global event fallback
-  const _globalSetLoadingHandler = (e) => {
-    if (e && e.detail !== undefined) {
-      loading.value = !!e.detail;
-    }
-  };
-  window.addEventListener('global-set-loading', _globalSetLoadingHandler);
+  setupStore.getData(id);
 });
 
-// cleanup on unmount
-onUnmounted(() => {
-  window.removeEventListener('global-set-loading', _globalSetLoadingHandler);
-});
-
-const updateThresholds = (data) => {
-  threshold.value = data.threshold;
-  threshold_last.value = data.threshold_last;
-  islanding_padding.value = data.islanding_padding;
-
-  // clear random examples
-  randomExamples.value = [];
-
-  updateSettings();
-}
-
-const updateMaxFlow = (data) => {
-  console.log(data);
-  max_flow_rate.value = data;
-  updateSettings();
-}
-
-const setLoading = (v) => {
-  console.debug('SetupView setLoading ->', v);
-  loading.value = v;
-}
-
-const requestRandomExample = async () => {
-  // Request a set of new random historic images for threshold evaluation
-  loading.value = true;
-  try {
-    const data = await fetch(host + 'api/request_random_example/' + id, {
-      method: 'GET',
-      headers: {
-        'secret': `${localStorage.getItem('secret')}`,
-      },
-    });
-
-    if (data.ok) {
-
-      if (data["error"]) {
-        console.error('requestRandomExample error', data["error"]);
-        return;
-      }
-
-      const result = await data.json();
-      randomExamples.value.push(result);
-    }
-  } catch (e) {
-    console.error('requestRandomExample failed', e);
-  }
-  finally {
-    loading.value = false;
-  }
-}
-
-const reevaluate = async () => {
-  loading.value = true;
-  try {
-    const r = await fetch(host + 'api/reevaluate_latest/' + id, {
-      method: 'GET',
-      headers: {
-        'secret': `${localStorage.getItem('secret')}`,
-      },
-    });
-
-    if (r.ok) {
-      let result;
-      try {
-        result = await r.json();
-      } catch (e) {
-        // not JSON, try text
-        const t = await r.text();
-        result = (t === 'true' || t === 'false') ? (t === 'true') : t;
-      }
-
-      if (typeof result === 'boolean') {
-        // endpoint returns boolean true/false
-        noBoundingBox.value = result === false;
-      } else if (typeof result === 'string') {
-        noBoundingBox.value = (result.toLowerCase() === 'false');
-      } else {
-        // unknown payload, do not change flag
-      }
-    }
-  } catch (e) {
-    console.error('reevaluate failed', e);
-  } finally {
-    // Refresh the data (getData will manage loading state)
-    getData();
-  }
-}
-
-const updateSegmentationSettings = async (data) => {
-  segments.value = data.segments;
-  extendedLastDigit.value = data.extendedLastDigit;
-  last3DigitsNarrow.value = data.last3DigitsNarrow;
-  rotated180.value = data.rotated180;
-
-  await updateSettings();
-  reevaluate();
-}
-const updateSettings = async () => {
-
-  const settings = {
-    name: id,
-    threshold_low: threshold.value[0],
-    threshold_high: threshold.value[1],
-    threshold_last_low: threshold_last.value[0],
-    threshold_last_high: threshold_last.value[1],
-    islanding_padding: islanding_padding.value,
-    rotated_180: rotated180.value,
-    segments: segments.value,
-    extended_last_digit: extendedLastDigit.value,
-    shrink_last_3: last3DigitsNarrow.value,
-    max_flow_rate: max_flow_rate.value
-  }
-
-  await fetch(host + 'api/settings', {
-    method: 'POST',
-    headers: {
-      'secret': `${localStorage.getItem('secret')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(settings)
-  });
-}
-
-
+// Simplified event handlers that delegate to store actions
+const getData = () => setupStore.getData(id);
+const nextStep = (step) => setupStore.nextStep(step);
+const setLoading = (v) => setupStore.setLoading(v);
+const updateThresholds = (data) => setupStore.updateThresholds(data, id);
+const updateMaxFlow = (data) => setupStore.updateMaxFlow(data, id);
+const updateSegmentationSettings = (data) => setupStore.updateSegmentationSettings(data, id);
+const reevaluate = () => setupStore.reevaluate(id);
+const requestRandomExample = () => setupStore.requestRandomExample(id);
 
 </script>
 
