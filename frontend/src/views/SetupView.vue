@@ -47,7 +47,7 @@
             :islanding_padding="islandingPadding"
             :loading="loading"
             @update="(data) => setupStore.updateThresholds(data, id)"
-            @reevaluate="() => setupStore.reevaluate(id)"
+            @reevaluate="() => setupStore.redoDigitEval(id) && setupStore.clearEvaluationExamples(id)"
             @next="() => setupStore.nextStep(2)"
         />
         <br>

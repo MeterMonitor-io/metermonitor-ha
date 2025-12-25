@@ -35,7 +35,7 @@
             @click="() => {emits('reevaluate');emits('next')}"
             round
             :disabled="loading"
-        >(Re)evaluate</n-button>
+        >Apply</n-button>
       </n-flex>
     </template>
   </n-card>

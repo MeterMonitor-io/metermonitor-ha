@@ -138,6 +138,34 @@ export const useSetupStore = defineStore('setup', () => {
     }
   };
 
+  const redoDigitEval = async (meterId) => {
+    // Clear existing examples and reset cancellation flag
+    loading.value = true;
+
+    const url = `api/watermeters/${meterId}/evaluations/sample`;
+    const response = await apiService.post(url);
+
+    if (response.ok) {
+      const result = await response.json();
+
+      if (result.error) {
+        console.error('redoDigitEval error', result.error);
+        loading.value = false;
+        return;
+      }
+
+      const watermeterStore = useWatermeterStore();
+      watermeterStore.evaluation.th_digits = result.processed_images;
+      watermeterStore.evaluation.predictions = result.predictions;
+
+      loading.value = false;
+
+    } else {
+      console.error('Failed to redo digit evaluation');
+      loading.value = false;
+    }
+  };
+
   const getData = async (meterId) => {
     loading.value = true;
     const watermeterStore = useWatermeterStore();
@@ -161,6 +189,7 @@ export const useSetupStore = defineStore('setup', () => {
     loading,
     // Actions
     reset,
+    redoDigitEval,
     nextStep,
     setLoading,
     updateThresholds,
