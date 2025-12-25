@@ -141,7 +141,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
             if r is not None:
                 value, confidence = r
                 cursor.execute('''
-                    INSERT INTO history
+                    INSERT INTO history (name, value, confidence, target_brightness, timestamp, manual)
                     VALUES (?,?,?,?,?,?)
                 ''', (
                     name,
@@ -175,6 +175,16 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         count = curser.fetchone()[0]
 
         if not skip_setup_overwriting and count > 0:
+            # find id of last evaluation
+            cursor.execute('''
+                SELECT id FROM evaluations
+                WHERE name = ?
+                ORDER BY id DESC
+                LIMIT 1
+            ''', (name,))
+            row = cursor.fetchone()
+            eval_id = row[0]
+
             # replace the last evaluation if setup is not finished instead of adding a new one
             cursor.execute('''
                            UPDATE evaluations
@@ -184,7 +194,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                timestamp = ?,
                                result = ?,
                                total_confidence = ?
-                           WHERE name = ?
+                           WHERE name = ? AND id = ?
                            ''', (
                                json.dumps(result) if result is not None else None,
                                json.dumps(processed) if processed is not None else None,
@@ -192,7 +202,8 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                timestamp if isinstance(timestamp, str) and timestamp.strip() else None,
                                value if value is not None else None,
                                float(confidence) if confidence is not None else None,
-                               name
+                               name,
+                               eval_id
                            ))
         else:
             cursor.execute('''

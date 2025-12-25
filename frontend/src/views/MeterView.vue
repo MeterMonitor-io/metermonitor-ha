@@ -104,8 +104,8 @@
         </n-card>
       </template>
     </div>
-    <div style="padding-left: 20px; padding-right: 10px;">
-      <EvaluationResultList :decodedEvals="decodedEvals" :name="id"/>
+    <div style="padding-left: 20px; padding-right: 10px;" v-if="evaluations !== null">
+      <EvaluationResultList :evaluations="evaluations" :name="id"/>
     </div>
     <div style="max-width: 500px;">
       <n-card size="small" style="overflow: hidden;">
@@ -173,10 +173,6 @@ const last3DigitsNarrow = ref(false);
 const rotated180 = ref(false);
 const maxFlowRate = ref(1.0);
 
-const decodedEvals = computed(() => {
-  return evaluations.value ? evaluations.value.evals.map((encoded) => JSON.parse(encoded)).reverse() : [];
-});
-
 const host = import.meta.env.VITE_HOST;
 
 const loadMeter = async () => {
@@ -189,10 +185,11 @@ const loadMeter = async () => {
   }
   data.value = await response.json();
 
-  response = await fetch(host + 'api/watermeters/' + id + '/evals', {
+  response = await fetch(host + 'api/watermeters/' + id + '/evals?amount=20', {
     headers: { secret: localStorage.getItem('secret') }
   });
-  evaluations.value = await response.json();
+  const evals = await response.json();
+  evaluations.value = (evals?.evals || []);
 
   response = await fetch(host + 'api/watermeters/' + id + '/history', {
     headers: { secret: localStorage.getItem('secret') }

@@ -428,10 +428,10 @@ def prepare_setup_app(config, lifespan):
 
         # Build query with optional pagination
         query = """
-            SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence, outdated
+            SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence, outdated, id
             FROM evaluations
             WHERE name = ?
-            ORDER BY id DESC
+            ORDER BY timestamp DESC
         """
         params = [name]
 
@@ -444,6 +444,7 @@ def prepare_setup_app(config, lifespan):
 
         cursor.execute(query, params)
         return {"evals": [{
+            "id": row[7],
             "colored_digits": json.loads(row[0]) if row[0] else None,
             "th_digits": json.loads(row[1]) if row[1] else None,
             "predictions": json.loads(row[2]) if row[2] else None,
