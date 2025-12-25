@@ -19,7 +19,7 @@ from typing import List
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, FileResponse, StreamingResponse
 
-from lib.functions import reevaluate_latest_picture, add_history_entry, request_random_exampleset
+from lib.functions import reevaluate_latest_picture, add_history_entry, reevaluate_digits
 from lib.meter_processing.meter_processing import MeterPredictor
 from lib.global_alerts import get_alerts, add_alert
 
@@ -408,12 +408,17 @@ def prepare_setup_app(config, lifespan):
 
     @app.get("/api/reevaluate_latest/{name}", dependencies=[Depends(authenticate)])
     def reevaluate_latest(name: str):
-        return (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False) != None)
+        try:
+            return {
+                "result": (reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False) != None)
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Re-evaluation failed: {str(e)}")
 
-    @app.get("/api/request_random_example/{name}", dependencies=[Depends(authenticate)])
-    def request_random_example(name: str):
+    @app.get("/api/get_reevaluated_digits/{name}", dependencies=[Depends(authenticate)])
+    def get_reevaluated_digits(name: str):
         # returns a set of random digits from historic evaluations for the given watermeter, evaluated with the current settings
-        return request_random_exampleset(config['dbfile'], name, meter_preditor, config)
+        return reevaluate_digits(config['dbfile'], name, meter_preditor, config)
 
     # GET endpoint for retrieving evaluations
     @app.get("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])
@@ -431,7 +436,7 @@ def prepare_setup_app(config, lifespan):
             SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence, outdated, id
             FROM evaluations
             WHERE name = ?
-            ORDER BY timestamp DESC
+            ORDER BY id DESC
         """
         params = [name]
 

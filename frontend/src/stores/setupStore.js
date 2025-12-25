@@ -61,20 +61,14 @@ export const useSetupStore = defineStore('setup', () => {
       const response = await apiService.get(`api/reevaluate_latest/${meterId}`);
 
       if (response.ok) {
-        let result;
-        try {
-          result = await response.json();
-        } catch (e) {
-          // not JSON, try text
-          const text = await response.text();
-          result = (text === 'true' || text === 'false') ? (text === 'true') : text;
+        const result = await response.json();
+
+        if (result.error) {
+          console.error('get_reevaluated_digits error', result.error);
+          return;
         }
 
-        if (typeof result === 'boolean') {
-          noBoundingBox.value = result === false;
-        } else if (typeof result === 'string') {
-          noBoundingBox.value = (result.toLowerCase() === 'false');
-        }
+        noBoundingBox.value = !result["result"]
       }
     } catch (e) {
       console.error('reevaluate failed', e);
@@ -86,23 +80,22 @@ export const useSetupStore = defineStore('setup', () => {
     }
   };
 
-  const requestRandomExample = async (meterId) => {
+  const requestReevaluatedDigits = async (meterId) => {
     loading.value = true;
     try {
-      const response = await apiService.get(`api/request_random_example/${meterId}`);
-
+      const response = await apiService.get(`api/get_reevaluated_digits/${meterId}`);
       if (response.ok) {
         const result = await response.json();
-        
+
         if (result.error) {
-          console.error('requestRandomExample error', result.error);
+          console.error('get_reevaluated_digits error', result.error);
           return;
         }
-
         randomExamples.value.push(result);
+
       }
     } catch (e) {
-      console.error('requestRandomExample failed', e);
+      console.error('get_reevaluated_digits failed', e);
     } finally {
       loading.value = false;
     }
@@ -128,7 +121,7 @@ export const useSetupStore = defineStore('setup', () => {
     updateMaxFlow,
     updateSegmentationSettings,
     reevaluate,
-    requestRandomExample,
+    requestReevaluatedDigits,
     getData,
   };
 });

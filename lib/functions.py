@@ -8,13 +8,13 @@ import numpy as np
 
 from lib.history_correction import correct_value
 
-def request_random_exampleset(db_file: str, name: str, meter_preditor, config):
+def reevaluate_digits(db_file: str, name: str, meter_preditor, config):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
 
         # Get a random eval from the database
         cursor.execute('''
-            SELECT eval FROM evaluations
+            SELECT colored_digits FROM evaluations
             WHERE name = ?
             ORDER BY RANDOM()
             LIMIT 1

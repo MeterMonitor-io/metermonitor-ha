@@ -5,7 +5,7 @@
        ← Back
     </n-button></router-link>
     <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;"/>
-    <n-button :loading="loading" @click="getData" round size="large" style="margin-left: 20px;">Refresh</n-button>
+    <n-button :loading="loading" @click="setupStore.getData" round size="large" style="margin-left: 20px;">Refresh</n-button>
   </n-flex>
     <n-h2>Setup for {{ id }}</n-h2>
 
@@ -24,8 +24,8 @@
             :evaluation="evaluation"
             :loading="loading"
             :no-bounding-box="noBoundingBox"
-            @update="updateSegmentationSettings"
-            @next="() => nextStep(1)"/>
+            @update="(settings) => setupStore.updateSegmentationSettings(settings, id)"
+            @next="() => setupStore.nextStep(1)"/>
         <br>
         <n-alert title="Example" type="info">
           <img src="@/assets/example_segmentation.png" alt="Example segmentation" style="max-width: 100%"/>
@@ -46,9 +46,9 @@
             :threshold_last="thresholdLast"
             :islanding_padding="islandingPadding"
             :loading="loading"
-            @update="updateThresholds"
-            @reevaluate="reevaluate"
-            @next="() => nextStep(2)"
+            @update="(data) => setupStore.updateThresholds(data, id)"
+            @reevaluate="() => setupStore.reevaluate(id)"
+            @next="() => setupStore.nextStep(2)"
         />
         <br>
         <n-alert title="Example" type="info">
@@ -69,9 +69,9 @@
         <EvaluationConfigurator
             :evaluation="evaluation"
             :max-flow-rate="maxFlowRate" :loading="loading"
-            @update="updateMaxFlow"
-            @set-loading="setLoading" :on-set-loading="setLoading"
-            @request-random-example="requestRandomExample"
+            @update="(data) => setupStore.updateMaxFlow(data, id)"
+            @set-loading="setupStore.setLoading"
+            @request-random-example="() => setupStore.requestReevaluatedDigits(id)"
             :meterid="id"
             :timestamp="lastPicture.picture.timestamp"
             :randomExamples="randomExamples"
@@ -119,17 +119,6 @@ const tresholdedImages = computed(() => {
 onMounted(() => {
   setupStore.getData(id);
 });
-
-// Simplified event handlers that delegate to store actions
-const getData = () => setupStore.getData(id);
-const nextStep = (step) => setupStore.nextStep(step);
-const setLoading = (v) => setupStore.setLoading(v);
-const updateThresholds = (data) => setupStore.updateThresholds(data, id);
-const updateMaxFlow = (data) => setupStore.updateMaxFlow(data, id);
-const updateSegmentationSettings = (data) => setupStore.updateSegmentationSettings(data, id);
-const reevaluate = () => setupStore.reevaluate(id);
-const requestRandomExample = () => setupStore.requestRandomExample(id);
-
 </script>
 
 <style scoped>
