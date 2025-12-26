@@ -5,7 +5,7 @@
        ← Back
     </n-button></router-link>
     <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;"/>
-    <n-button :loading="loading" @click="setupStore.getData" round size="large" style="margin-left: 20px;">Refresh</n-button>
+    <n-button :loading="loading" @click="() => setupStore.getData(id)" round size="large" style="margin-left: 20px;">Refresh</n-button>
   </n-flex>
     <n-h2>Setup for {{ id }}</n-h2>
 

@@ -307,7 +307,7 @@ def prepare_setup_app(config, lifespan):
         return {"message": "Setup completed"}
 
     @app.get("/api/watermeters/{name}/history", dependencies=[Depends(authenticate)])
-    def get_watermeter(name: str):
+    def get_watermeter_history(name: str):
         cursor = db_connection().cursor()
         cursor.execute("SELECT value, timestamp, confidence, manual FROM history WHERE name = ?", (name,))
         return {"history": [row for row in cursor.fetchall()]}
@@ -339,7 +339,8 @@ def prepare_setup_app(config, lifespan):
                 "width": row[5],
                 "height": row[6],
                 "length": row[7],
-                "data": row[8]
+                "data": row[8],
+                "data_bbox": row[10]
             },
             "dataset_present": dataset_present
         }

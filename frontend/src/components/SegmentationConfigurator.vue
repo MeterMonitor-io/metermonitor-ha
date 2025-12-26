@@ -1,7 +1,7 @@
 <template>
   <n-card>
     <template #cover>
-      <img v-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data" alt="Watermeter" :class="{rotated: nrotated180}" />
+      <img v-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" :class="{rotated: rotated180}" />
     </template>
     <br>
 
@@ -15,10 +15,18 @@
       </template>
       <span>Number of segments (5-10)</span>
     </n-tooltip>
-    <n-input-number v-model:value="nsegments" :max="10" :min="5" :disabled="loading">
+    <n-input-number
+      :value="segments"
+      @update:value="handleUpdate('segments', $event)"
+      :max="10"
+      :min="5"
+      :disabled="loading">
     </n-input-number>
     <n-divider dashed></n-divider>
-    <n-checkbox v-model:checked="nextendedLastDigit" :disabled="loading">
+    <n-checkbox
+      :checked="extendedLastDigit"
+      @update:checked="handleUpdate('extendedLastDigit', $event)"
+      :disabled="loading">
       <n-tooltip>
         <template #trigger>
           <span>Extended last digit</span>
@@ -26,7 +34,10 @@
         <span>Enable if the last digits display is bigger<br>compared to the other digits</span>
       </n-tooltip>
     </n-checkbox><br>
-    <n-checkbox v-model:checked="nlast3DigitsNarrow" :disabled="loading">
+    <n-checkbox
+      :checked="last3DigitsNarrow"
+      @update:checked="handleUpdate('last3DigitsNarrow', $event)"
+      :disabled="loading">
       <n-tooltip>
         <template #trigger>
           <span>Last 3 digits are narrow</span>
@@ -34,7 +45,10 @@
         <span>Enable if the last three digits displays are narrower<br>compared to the other digits</span>
       </n-tooltip>
     </n-checkbox><br>
-    <n-checkbox v-model:checked="nrotated180" :disabled="loading">
+    <n-checkbox
+      :checked="rotated180"
+      @update:checked="handleUpdate('rotated180', $event)"
+      :disabled="loading">
       <n-tooltip>
         <template #trigger>
           <span>180° rotated</span>
@@ -42,9 +56,9 @@
         <span>Enable if the captured image is rotated 180°</span>
       </n-tooltip>
     </n-checkbox><br>
-    <template #action v-if="nEvaluation">
+    <template #action v-if="evaluation">
       <n-flex justify="space-around" size="large">
-        <img class="digit" v-for="base64 in nEvaluation['colored_digits']" :src="'data:image/png;base64,' + base64" :key="base64" alt="D" style="max-width: 40px"/>
+        <img class="digit" v-for="base64 in evaluation['colored_digits']" :src="'data:image/png;base64,' + base64" :key="base64" alt="D" style="max-width: 40px"/>
       </n-flex><br>
       <n-flex justify="end" size="large">
         <n-button
@@ -60,7 +74,7 @@
 
 <script setup>
 import {NCard, NFlex, NInputNumber, NCheckbox, NDivider, NButton, NTooltip, NAlert} from 'naive-ui';
-import {defineProps, defineEmits, ref, watch} from 'vue';
+import {defineProps, defineEmits} from 'vue';
 
 const props = defineProps([
     'lastPicture',
@@ -74,37 +88,14 @@ const props = defineProps([
 ]);
 const emits = defineEmits(['update', 'next']);
 
-watch(() => props.segments, (newVal) => {
-  nsegments.value = newVal;
-});
-watch(() => props.extendedLastDigit, (newVal) => {
-  nextendedLastDigit.value = newVal;
-});
-watch(() => props.last3DigitsNarrow, (newVal) => {
-  nlast3DigitsNarrow.value = newVal;
-});
-watch(() => props.evaluation, (newVal) => {
-  nEvaluation.value = newVal;
-});
-watch(() => props.rotated180, (newVal) => {
-  nrotated180.value = newVal;
-});
-
-const nsegments = ref(props.segments);
-const nextendedLastDigit = ref(props.extendedLastDigit);
-const nlast3DigitsNarrow = ref(props.last3DigitsNarrow);
-const nEvaluation = ref(props.evaluation);
-const nrotated180 = ref(props.rotated180);
-
-watch([nsegments, nextendedLastDigit, nlast3DigitsNarrow, nrotated180], () => {
+const handleUpdate = (field, value) => {
   emits('update', {
-    segments: nsegments.value,
-    extendedLastDigit: nextendedLastDigit.value,
-    last3DigitsNarrow: nlast3DigitsNarrow.value,
-    rotated180: nrotated180.value
+    segments: field === 'segments' ? value : props.segments,
+    extendedLastDigit: field === 'extendedLastDigit' ? value : props.extendedLastDigit,
+    last3DigitsNarrow: field === 'last3DigitsNarrow' ? value : props.last3DigitsNarrow,
+    rotated180: field === 'rotated180' ? value : props.rotated180
   });
-});
-
+};
 
 </script>
 

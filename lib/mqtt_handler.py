@@ -135,8 +135,9 @@ class MQTTHandler:
                         data['picture']['width'],
                         data['picture']['height'],
                         data['picture']['length'],
-                        boundingboxed_image,
-                        0
+                        data['picture']['data'],
+                        0,
+                        boundingboxed_image
                     ))
                     cursor.execute('''
                                     INSERT OR IGNORE INTO settings
@@ -167,7 +168,8 @@ class MQTTHandler:
                                 picture_width = ?, 
                                 picture_height = ?, 
                                 picture_length = ?, 
-                                picture_data = ?
+                                picture_data = ?,
+                                picture_data_bbox = ?
                             WHERE name = ?
                         ''', (
                         data['picture_number'],
@@ -177,6 +179,7 @@ class MQTTHandler:
                         data['picture']['width'],
                         data['picture']['height'],
                         data['picture']['length'],
+                        data['picture']['data'],
                         boundingboxed_image,
                         data['name']
                     ))

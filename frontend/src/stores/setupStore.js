@@ -60,9 +60,9 @@ export const useSetupStore = defineStore('setup', () => {
     await reevaluate(meterId);
   };
 
-  const clearEvaluationExamples = (meterId = null) => {
+  const clearEvaluationExamples = (meterId=null) => {
     randomExamples.value = [];
-    if(meterId) requestReevaluatedDigits(meterId);
+    if (meterId) requestReevaluatedDigits(meterId)
   }
 
   const reevaluate = async (meterId) => {
@@ -90,7 +90,7 @@ export const useSetupStore = defineStore('setup', () => {
       const watermeterStore = useWatermeterStore();
       await watermeterStore.fetchAll(meterId);
       loading.value = false;
-      clearEvaluationExamples(meterId);
+      clearEvaluationExamples();
     }
   };
 

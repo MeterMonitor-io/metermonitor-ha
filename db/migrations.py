@@ -108,8 +108,6 @@ def run_migrations(db_file):
             cursor.execute("ALTER TABLE evaluations_new RENAME TO evaluations")
             conn.commit()
             print("[MIGRATION] Completed evaluations table migration")
-        else:
-            print("[MIGRATION] No legacy 'eval' column found or migration already applied")
 
         # Add auto-incrementing ID primary key to evaluations table
         cursor.execute("PRAGMA table_info(evaluations)")
@@ -146,9 +144,6 @@ def run_migrations(db_file):
             cursor.execute("ALTER TABLE evaluations_new RENAME TO evaluations")
             conn.commit()
             print("[MIGRATION] Added ID primary key to evaluations table")
-        else:
-            print("[MIGRATION] ID column already exists in evaluations table")
-
         # Add auto-incrementing ID primary key to history table
         cursor.execute("PRAGMA table_info(history)")
         columns = [info[1] for info in cursor.fetchall()]
@@ -182,7 +177,15 @@ def run_migrations(db_file):
             cursor.execute("ALTER TABLE history_new RENAME TO history")
             conn.commit()
             print("[MIGRATION] Added ID primary key to history table")
-        else:
-            print("[MIGRATION] ID column already exists in history table")
+
+        # add column picture_data_bbox to watermeters table if it doesn't exist yet
+        cursor.execute("PRAGMA table_info(watermeters)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'picture_data_bbox' not in columns:
+            cursor.execute('''
+                ALTER TABLE watermeters
+                ADD COLUMN picture_data_bbox BLOB
+            ''')
+            print("[MIGRATION] Added 'picture_data_bbox' column to 'watermeters' table")
 
 

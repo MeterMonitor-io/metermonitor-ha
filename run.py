@@ -121,5 +121,5 @@ if config['http']['enabled']:
     print(f"[INIT] Started setup server on http://{config['http']['host']}:{config['http']['port']}")
 
 else:
-    mqtt_handler = MQTTHandler(db_file=config['dbfile'], forever=True)
+    mqtt_handler = MQTTHandler(config, db_file=config['dbfile'], forever=True)
     mqtt_handler.start(**MQTT_CONFIG)

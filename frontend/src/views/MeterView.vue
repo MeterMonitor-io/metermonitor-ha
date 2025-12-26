@@ -19,7 +19,7 @@
         </template>
         <template #cover>
           <img
-            :src="'data:image/' + data.picture.format + ';base64,' + data.picture.data"
+            :src="'data:image/' + data.picture.format + ';base64,' + data.picture.data_bbox"
             alt="Watermeter"
             :class="{ rotated: rotated180 }"
           />
