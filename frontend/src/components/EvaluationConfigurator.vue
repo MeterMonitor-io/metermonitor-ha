@@ -13,23 +13,42 @@
         <span class="confidence google-sans-code" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'e'" :style="{color: getColor(digit[0][1])}">
           {{ (digit[0][1] * 100).toFixed(1) }}
         </span>
+      </n-flex><br>
+      <n-flex align="center">
+        <n-badge
+          :value="loading ? '' : `${averageConfidence}%`"
+          :processing="loading"
+          :type="getBadgeType(averageConfidence)"
+          :show="randomExamples && randomExamples.length > 0"
+        >
+        </n-badge>
+        <span style="font-weight: 500;" v-if="randomExamples && randomExamples.length > 0">
+          Average Confidence on digits from {{ randomExamples ? randomExamples.length : 0 }} historical evaluations.
+        </span>
+        <span v-else>
+          Press "Apply" to evaluate and run the benchmark.
+        </span>
       </n-flex>
-      <n-divider />
-      <n-grid v-if="randomExamples" :cols="15" y-gap="4">
-        <template v-for="[i, example] in randomExamples.entries()" :key="i + 'example'">
-          <n-gi justify="space-around" size="small" v-for="[i,base64] in example['processed_images'].entries()" :key="i + 'x'" class="grid-container">
-            <img
-                class="digit_small"
-                :src="'data:image/png;base64,' + base64"
-                alt="D"
-            />
-            <br>
-            <span class="prediction_small" :style="{color: getColor(example['predictions'][i][0][1])}">
-              {{ (example['predictions'][i][0][0]==='r')? '↕' : example['predictions'][i][0][0] }}
-            </span>
-          </n-gi>
-        </template>
-      </n-grid>
+      <br>
+      <n-collapse v-if="randomExamples && randomExamples.length > 0">
+        <n-collapse-item title="Show results" name="1">
+          <n-grid :cols="15" y-gap="4">
+            <template v-for="[i, example] in randomExamples.entries()" :key="i + 'example'">
+              <n-gi justify="space-around" size="small" v-for="[i,base64] in example['processed_images'].entries()" :key="i + 'x'" class="grid-container">
+                <img
+                    class="digit_small"
+                    :src="'data:image/png;base64,' + base64"
+                    alt="D"
+                />
+                <br>
+                <span class="prediction_small" :style="{color: getColor(example['predictions'][i][0][1])}">
+                  {{ (example['predictions'][i][0][0]==='r')? '↕' : example['predictions'][i][0][0] }}
+                </span>
+              </n-gi>
+            </template>
+          </n-grid>
+        </n-collapse-item>
+      </n-collapse>
       <n-divider />
       <n-flex>
         <div style="max-width: 45%">
@@ -59,10 +78,9 @@
 </template>
 
 <script setup>
-import {defineProps, ref, defineEmits} from 'vue';
-import {NFlex, NCard, NButton, NInputNumber, NDivider, NIcon, NGrid, NGi, useDialog} from 'naive-ui';
+import {defineProps, ref, defineEmits, computed} from 'vue';
+import {NFlex, NCard, NButton, NInputNumber, NDivider, NIcon, NGrid, NGi, NCollapse, NCollapseItem, NBadge, useDialog} from 'naive-ui';
 import router from "@/router";
-import { ShuffleFilled } from '@vicons/material';
 
 const emit = defineEmits(['update', 'set-loading', 'request-random-example']);
 
@@ -80,6 +98,37 @@ const initialValue = ref(0);
 
 const dialog = useDialog();
 const host = import.meta.env.VITE_HOST;
+
+// Calculate average confidence from random examples
+const averageConfidence = computed(() => {
+  if (!props.randomExamples || props.randomExamples.length === 0) {
+    return 0;
+  }
+
+  let totalConfidence = 0;
+  let count = 0;
+
+  props.randomExamples.forEach(example => {
+    if (example.predictions) {
+      example.predictions.forEach(prediction => {
+        if (prediction && prediction[0] && prediction[0][1] !== undefined) {
+          totalConfidence += prediction[0][1];
+          count++;
+        }
+      });
+    }
+  });
+
+  return count > 0 ? ((totalConfidence / count) * 100).toFixed(1) : 0;
+});
+
+// Get badge type based on confidence level
+const getBadgeType = (confidence) => {
+  if (confidence >= 90) return 'success';
+  if (confidence >= 75) return 'warning';
+  return 'error';
+};
+
 
 const finishSetup = async () => {
 
