@@ -121,7 +121,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         extended_last_digit = settings[7]
         max_flow_rate = settings[8]
         rotated_180 = settings[9]
-        conf_threshold = settings[10]
+        conf_threshold = settings[10] if settings[10] else 0.0
 
         # Get the target_brightness from the last history entry
         cursor.execute("SELECT target_brightness FROM history WHERE name = ? ORDER BY ROWID DESC LIMIT 1", (name,))

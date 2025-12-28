@@ -62,7 +62,7 @@ const confidenceSeries = computed(() => {
     // item is [value, timestamp, confidence, manual]
     return {
       x: new Date(item[1]).getTime(),
-      y: item[2]
+      y: item[2] * 100
     };
   });
 

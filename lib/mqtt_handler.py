@@ -138,7 +138,7 @@ class MQTTHandler:
                     ))
                     cursor.execute('''
                                     INSERT OR IGNORE INTO settings
-                                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                                 ''', (
                         data['name'],
                         0,
@@ -150,7 +150,8 @@ class MQTTHandler:
                         False,
                         False,
                         False,
-                        1.0
+                        1.0,
+                        None
                     ))
 
                     publish_registration(self.client, self.config, data['name'], "value")

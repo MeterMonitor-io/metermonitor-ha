@@ -33,35 +33,6 @@
         This will delete the meter with all its settings and data. Are you sure?
       </n-popconfirm>
     </n-flex>
-    <br />
-    <n-card size="small">
-      <n-list>
-        <n-list-item>
-          <n-thing title="Thresholds" :title-extra="`${settings.threshold_low} - ${settings.threshold_high}`" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Last digit thresholds" :title-extra="`${settings.threshold_last_low} - ${settings.threshold_last_high}`" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Islanding padding" :title-extra="settings.islanding_padding" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Segments" :title-extra="settings.segments" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Extended last digit" :title-extra="settings.extended_last_digit ? 'Yes' : 'No'" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Last 3 digits narrow" :title-extra="settings.shrink_last_3 ? 'Yes' : 'No'" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Rotated 180" :title-extra="settings.rotated_180 ? 'Yes' : 'No'" />
-        </n-list-item>
-        <n-list-item>
-          <n-thing title="Max. flow rate" :title-extra="settings.max_flow_rate + ' m³/h'" />
-        </n-list-item>
-      </n-list>
-    </n-card>
     <template v-if="data && data.dataset_present">
       <br />
       <n-card size="small">
@@ -89,6 +60,17 @@
         </n-flex>
       </n-card>
     </template>
+
+    <br />
+    <n-thing title="Thresholds" :title-extra="`${settings.threshold_low} - ${settings.threshold_high}`" />
+    <n-thing title="Last digit thresholds" :title-extra="`${settings.threshold_last_low} - ${settings.threshold_last_high}`" />
+    <n-thing title="Islanding padding" :title-extra="settings.islanding_padding" />
+    <n-thing title="Segments" :title-extra="settings.segments" />
+    <n-thing title="Extended last digit" :title-extra="settings.extended_last_digit ? 'Yes' : 'No'" />
+    <n-thing title="Last 3 digits narrow" :title-extra="settings.shrink_last_3 ? 'Yes' : 'No'" />
+    <n-thing title="Rotated 180" :title-extra="settings.rotated_180 ? 'Yes' : 'No'" />
+    <n-thing title="Max. flow rate" :title-extra="settings.max_flow_rate + ' m³/h'" />
+    <n-thing title="Conf. threshold" :title-extra="settings.conf_threshold + '%'" />
   </div>
 </template>
 
