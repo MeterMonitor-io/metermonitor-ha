@@ -194,7 +194,7 @@ def run_migrations(db_file):
         if 'conf_threshold' not in columns:
             cursor.execute('''
                 ALTER TABLE settings
-                ADD COLUMN conf_threshold REAL DEFAULT 0.5
+                ADD COLUMN conf_threshold REAL DEFAULT NULL
             ''')
             print("[MIGRATION] Added 'conf_threshold' column to 'settings' table")
 
