@@ -234,10 +234,10 @@ def run_migrations(db_file):
                 ADD COLUMN th_digits_inverted TEXT
             ''')
             # load all images, invert colors of th_digits and store in th_digits_inverted
-            cursor.execute("SELECT name, th_digits FROM evaluations")
+            cursor.execute("SELECT id, th_digits FROM evaluations")
             rows = cursor.fetchall()
             for row in rows:
-                name = row["name"]
+                row_id = row["id"]
                 th_digits_json = row["th_digits"]
                 inverted_list = []
                 try:
@@ -258,9 +258,6 @@ def run_migrations(db_file):
                 except Exception:
                     inverted_list = []
                 inverted_json = json.dumps(inverted_list)
-                cursor.execute("UPDATE evaluations SET th_digits_inverted = ? WHERE name = ?", (inverted_json, name))
+                cursor.execute("UPDATE evaluations SET th_digits_inverted = ? WHERE id = ?", (inverted_json, row_id))
             print("[MIGRATION] Added 'th_digits_inverted' column to 'evaluations' table and populated values")
-
-        conn.commit()
-
 
