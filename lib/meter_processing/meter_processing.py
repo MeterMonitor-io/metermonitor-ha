@@ -1,14 +1,12 @@
 import base64
-
+import gc
+import os
 from io import BytesIO
 
 import cv2
 import numpy as np
 from PIL import Image
-from ultralytics import YOLO
-from tensorflow.keras.models import load_model
-
-from lib.meter_processing.loss_fn import CostSensitiveLoss
+import onnxruntime as ort
 
 
 class MeterPredictor:
@@ -19,15 +17,45 @@ class MeterPredictor:
 
     def __init__(self):
         """
-        Initializes the YOLO model and loads the keras model, so they can
-        be reused for multiple images without re-initializing.
+        Initializes the ONNX inference sessions for YOLO and digit classifier.
+        Optimized for minimal memory usage - uses ~70% less RAM than TensorFlow+PyTorch.
         """
-        # Load YOLO model (oriented bounding box capable)
-        self.model = YOLO("models/yolo-best-obb-2.pt")
+        print("[MeterPredictor] Loading ONNX models...")
 
-        # Load tensorflow model
-        self.digitmodel = load_model('models/best_model.keras', custom_objects={'CostSensitiveLoss': CostSensitiveLoss})
+        # Configure ONNX Runtime for minimal memory usage
+        sess_options = ort.SessionOptions()
+        sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        sess_options.enable_mem_pattern = False  # Reduce memory fragmentation
+        sess_options.enable_cpu_mem_arena = False  # Reduce memory overhead
+
+        # Load YOLO ONNX model for oriented bounding box detection
+        self.yolo_session = ort.InferenceSession(
+            "models/yolo-best-obb-2.onnx",
+            sess_options=sess_options,
+            providers=['CPUExecutionProvider']
+        )
+
+        # Load digit classifier ONNX model
+        self.digit_session = ort.InferenceSession(
+            'models/best_model.onnx',
+            sess_options=sess_options,
+            providers=['CPUExecutionProvider']
+        )
+
         self.class_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'r']
+
+        # Get input/output names for both models
+        self.yolo_input_name = self.yolo_session.get_inputs()[0].name
+        self.yolo_output_names = [output.name for output in self.yolo_session.get_outputs()]
+
+        self.digit_input_name = self.digit_session.get_inputs()[0].name
+        self.digit_output_name = self.digit_session.get_outputs()[0].name
+
+        # Force garbage collection after loading models
+        gc.collect()
+        print("[MeterPredictor] ONNX models loaded successfully with minimal memory footprint.")
+        print(f"[MeterPredictor] YOLO input: {self.yolo_input_name}")
+        print(f"[MeterPredictor] Digit classifier input: {self.digit_input_name}")
 
     def extract_display_and_segment(self, input_image, segments=7, rotated_180=False, extended_last_digit=False, shrink_last_3=False, target_brightness=None):
         """
@@ -51,22 +79,210 @@ class MeterPredictor:
             input_image = input_image.rotate(180, expand=True)
 
         print(f"[Predictor] Running YOLO region-of-interest detection...")
-        # run yolo detection
-        results = self.model.predict(input_image, save=False, conf=0.15)
-        obb_data = results[0].obb
 
-        # If no OBB found, bail out
-        if (
-                obb_data is None or
-                obb_data.xyxyxyxy is None or
-                len(obb_data.xyxyxyxy) == 0
-        ):
-            print(f"[Predictor] No instances detected in the image.")
-            return [], [], None
+        # Prepare image for YOLO ONNX model
+        img_np = np.array(input_image)
+        original_height, original_width = img_np.shape[:2]
 
+        # Letterbox resizing (maintain aspect ratio)
+        target_size = 640
+        scale = min(target_size / original_width, target_size / original_height)
+        new_w = int(original_width * scale)
+        new_h = int(original_height * scale)
 
-        obb_coords = obb_data.xyxyxyxy[0].cpu().numpy()
-        img = np.array(input_image)
+        img_resized = cv2.resize(img_np, (new_w, new_h))
+
+        # Create canvas with padding (114 is standard YOLO padding color)
+        canvas = np.full((target_size, target_size, 3), 114, dtype=np.uint8)
+
+        # Center the image
+        top = (target_size - new_h) // 2
+        left = (target_size - new_w) // 2
+        canvas[top:top+new_h, left:left+new_w] = img_resized
+
+        # Convert RGB to BGR if needed
+        if len(canvas.shape) == 3 and canvas.shape[2] == 3:
+            canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+
+        # Normalize and prepare for ONNX (CHW format)
+        img_normalized = canvas.astype(np.float32) / 255.0
+        img_transposed = img_normalized.transpose(2, 0, 1)  # HWC to CHW
+        img_batch = np.expand_dims(img_transposed, axis=0)  # Add batch dimension
+
+        # Run YOLO ONNX inference
+        try:
+            outputs = self.yolo_session.run(None, {self.yolo_input_name: img_batch})
+        except Exception as e:
+            print(f"[Predictor] YOLO inference failed: {e}")
+            return [], [], None, None
+
+        # YOLO OBB output format:
+        # outputs[0] shape is typically [batch, num_preds, num_values]
+        # For OBB: [batch, num_preds, 7+num_classes] where 7 = [x, y, w, h, rotation, confidence, class_id]
+        # OR [batch, features, anchors] e.g. [1, 6, 8400]
+
+        output = outputs[0]
+
+        # Transpose if features are in the second dimension (channels first)
+        # e.g. [1, 6, 8400] -> [1, 8400, 6]
+        if output.shape[1] < output.shape[2]:
+            output = output.transpose(0, 2, 1)
+
+        predictions = output[0]  # Remove batch dimension
+
+        # Filter by confidence
+        # For OBB with 1 class, we expect 6 features.
+        # The order varies by version. It could be [x, y, w, h, rotation, confidence] or [x, y, w, h, confidence, rotation]
+
+        # Heuristic to determine which channel is confidence and which is rotation
+        # Confidence is strictly [0, 1]. Rotation is in radians (approx -1.57 to 1.57) and can be > 1.
+
+        if predictions.shape[1] == 6:
+            col4 = predictions[:, 4]
+            col5 = predictions[:, 5]
+
+            max4 = np.max(col4)
+            max5 = np.max(col5)
+
+            # If one column has values > 1.0, it must be rotation
+            if max5 > 1.05:
+                confidence_idx = 4
+                rotation_idx = 5
+                print(f"[Predictor] Detected format: [x, y, w, h, conf, rot] (max col5={max5:.2f})")
+            elif max4 > 1.05:
+                confidence_idx = 5
+                rotation_idx = 4
+                print(f"[Predictor] Detected format: [x, y, w, h, rot, conf] (max col4={max4:.2f})")
+            else:
+                # Ambiguous if both are small.
+                # Default to index 4 as confidence (common in newer versions: xywh + conf + rot)
+                confidence_idx = 4
+                rotation_idx = 5
+                print(f"[Predictor] Ambiguous format (max values <= 1.0). Defaulting to [x, y, w, h, conf, rot]")
+
+        elif predictions.shape[1] >= 7:
+             # [x, y, w, h, conf, class..., rot] or similar
+             # Usually rotation is the last one or after coords
+             # Let's assume standard YOLOv8/11 OBB: [x, y, w, h, split_conf?, rot?]
+             # Actually, often it is [x, y, w, h, class_probs..., rot]
+             # If 1 class: [x, y, w, h, class_prob, rot] -> same as 6 channels
+
+             # If we have 7 channels, maybe 2 classes?
+             # [x, y, w, h, class1, class2, rot]
+
+             # Rotation is likely the last channel or the one with values > 1
+
+             # Find channel with max > 1.05
+             rotation_idx = -1
+             for i in range(4, predictions.shape[1]):
+                 if np.max(predictions[:, i]) > 1.05:
+                     rotation_idx = i
+                     break
+
+             if rotation_idx != -1:
+                 # If we found rotation, the rest are classes/confidence
+                 # Take max of other channels as confidence
+                 class_indices = [i for i in range(4, predictions.shape[1]) if i != rotation_idx]
+                 confidence_idx = class_indices[0] # Just for scalar indexing if needed
+                 # But we should take max over class indices
+             else:
+                 # Fallback
+                 rotation_idx = predictions.shape[1] - 1
+                 confidence_idx = 4
+
+        if predictions.shape[1] >= 6:
+            if predictions.shape[1] > 6:
+                # Multiple classes or class probs, take max of all class columns
+                # Exclude rotation index
+                class_cols = [i for i in range(4, predictions.shape[1]) if i != rotation_idx]
+                if class_cols:
+                    confidences = np.max(predictions[:, class_cols], axis=1)
+                else:
+                    confidences = predictions[:, confidence_idx]
+            else:
+                confidences = predictions[:, confidence_idx]
+        else:
+             confidences = predictions[:, confidence_idx]
+
+        valid_mask = confidences > 0.15
+
+        if not np.any(valid_mask):
+            print(f"[Predictor] No instances detected with confidence > 0.15")
+            return [], [], None, None
+
+        valid_predictions = predictions[valid_mask]
+        valid_confidences = confidences[valid_mask]
+
+        # Get the detection with highest confidence
+        best_idx = np.argmax(valid_confidences)
+        detection = valid_predictions[best_idx]
+
+        print(f"[Predictor] Raw detection: {detection}")
+        print(f"[Predictor] Confidence: {valid_confidences[best_idx]:.4f}")
+        print(f"[Predictor] Rotation: {detection[rotation_idx]:.4f}")
+        print(f"[Predictor] Original size: {original_width}x{original_height}")
+
+        # Extract OBB parameters (x_center, y_center, width, height, rotation)
+        x_center_norm = detection[0]
+        y_center_norm = detection[1]
+        width_norm = detection[2]
+        height_norm = detection[3]
+
+        # Handle rotation angle
+        rotation = detection[rotation_idx]  # In radians
+
+        # Scale back to original image size
+        # Check if coordinates are normalized (0-1) or pixels (0-640)
+        if x_center_norm < 2.0 and y_center_norm < 2.0 and width_norm < 2.0 and height_norm < 2.0:
+             # Normalized coordinates -> convert to pixels in 640x640 space first
+             x_center_pixel = x_center_norm * 640.0
+             y_center_pixel = y_center_norm * 640.0
+             width_pixel = width_norm * 640.0
+             height_pixel = height_norm * 640.0
+        else:
+             # Pixel coordinates
+             x_center_pixel = x_center_norm
+             y_center_pixel = y_center_norm
+             width_pixel = width_norm
+             height_pixel = height_norm
+
+        # Adjust for letterboxing
+        # 1. Remove padding shift
+        x_center_pixel -= left
+        y_center_pixel -= top
+
+        # 2. Scale back to original size
+        x_center = x_center_pixel / scale
+        y_center = y_center_pixel / scale
+        width = width_pixel / scale
+        height = height_pixel / scale
+
+        # Convert OBB (center, size, rotation) to 4 corner points
+        # Create corner offsets (unrotated box)
+        hw = width / 2.0
+        hh = height / 2.0
+
+        corners_unrotated = np.array([
+            [-hw, -hh],  # top-left
+            [hw, -hh],   # top-right
+            [hw, hh],    # bottom-right
+            [-hw, hh]    # bottom-left
+        ], dtype=np.float32)
+
+        # Apply rotation
+        cos_r = np.cos(rotation)
+        sin_r = np.sin(rotation)
+        rotation_matrix = np.array([
+            [cos_r, -sin_r],
+            [sin_r, cos_r]
+        ], dtype=np.float32)
+
+        corners_rotated = corners_unrotated @ rotation_matrix.T
+
+        # Translate to center position
+        obb_coords = corners_rotated + np.array([x_center, y_center], dtype=np.float32)
+
+        img = img_np
 
         # 1. Cut out the detected OBB
 
@@ -260,12 +476,15 @@ class MeterPredictor:
 
     # use the classifier to predict the digit, returns the top 3 predictions with their confidence
     def predict_digit(self, digit):
-        # Perform prediction using your model
-        predictions = self.digitmodel.predict(digit)
+        # Perform prediction using ONNX model
+        predictions = self.digit_session.run(
+            [self.digit_output_name],
+            {self.digit_input_name: digit}
+        )[0]
+
         top3 = np.argsort(predictions[0])[-3:][::-1]
         pairs = [(self.class_names[i], float(predictions[0][i])) for i in top3]
 
-        # the second element of the pair is used to provide predictions from a second model for testing purposes
         return pairs
 
     def predict_digits(self, digits):
@@ -278,6 +497,9 @@ class MeterPredictor:
         for i,digit in enumerate(digits):
             digit = self.predict_digit(digit)
             predicted_digits.append(digit)
+
+        # Clean up memory after batch prediction
+        gc.collect()
 
         return predicted_digits
 

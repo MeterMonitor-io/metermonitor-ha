@@ -49,7 +49,6 @@ def reevaluate_digits(db_file: str, name: str, meter_preditor, config, offset: i
             image_data = base64.b64decode(raw_image)
             image = Image.open(BytesIO(image_data))
             digits.append(np.array(image))
-        print(digits)
 
         # Get current settings for the watermeter
         cursor.execute('''

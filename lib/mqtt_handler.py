@@ -7,7 +7,7 @@ import sqlite3
 from typing import Dict, Any
 
 from lib.functions import reevaluate_latest_picture, publish_registration
-from lib.meter_processing.meter_processing import MeterPredictor
+from lib.model_singleton import get_meter_predictor
 import traceback
 
 from lib.global_alerts import add_alert, remove_alert
@@ -20,8 +20,9 @@ class MQTTHandler:
         self.config = config
         self.forever = forever
         self.should_reconnect = True
-        self.meter_preditor = MeterPredictor()
-        print("[MQTT] Loaded MQTT meter predictor.")
+        # Use singleton instance (shared with HTTP server)
+        self.meter_preditor = get_meter_predictor()
+        print("[MQTT] Using shared meter predictor singleton instance.")
 
     # On connect, remove the alert for the frontend
     # Also publish registration messages for all known watermeters

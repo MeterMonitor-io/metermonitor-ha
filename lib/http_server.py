@@ -21,6 +21,7 @@ from starlette.responses import JSONResponse, FileResponse, StreamingResponse
 
 from lib.functions import reevaluate_latest_picture, add_history_entry, reevaluate_digits
 from lib.meter_processing.meter_processing import MeterPredictor
+from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
 
 
@@ -36,10 +37,10 @@ def prepare_setup_app(config, lifespan):
     if config['secret_key'] == "change_me" and config['enable_auth']:
         add_alert("authentication", "Please change the secret key in the configuration file!")
 
-    # create instance of meter predictor
-    meter_preditor = MeterPredictor()
+    # Get singleton instance of meter predictor (shared with MQTT handler)
+    meter_preditor = get_meter_predictor()
 
-    print("[HTTP] Successfully initialized the meter predictor.")
+    print("[HTTP] Using shared meter predictor singleton instance.")
 
     # CORS Konfiguration
     app.add_middleware(

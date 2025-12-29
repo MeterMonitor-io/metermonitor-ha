@@ -2,11 +2,10 @@ fastapi==0.115.8
 importlib-metadata==8.0.0
 paho-mqtt==2.1.0
 platformdirs==4.2.2
-tensorflow-cpu==2.18.0
-tomli==2.0.1
 uvicorn==0.34.0
 pyyaml==6.0.2
 opencv-python-headless==4.11.0.86
 pillow==11.1.0
 python-dateutil==2.9.0.post0
-ultralytics==8.3.93
+onnxruntime==1.19.2
+numpy==1.26.4

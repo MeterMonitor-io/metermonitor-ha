@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# IDEs
+.idea/
+.vscode/
+
+# Large Model Source Files (if you only need ONNX in production)
+*.pt
+*.keras
+*.h5
+# Keep .onnx files if they are needed for runtime
