@@ -18,16 +18,9 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v4
 
-        - name: Install Node.js
-          uses: actions/setup-node@v3
-          with:
-            node-version: '20' # You can specify your desired Node.js version
-
-        - name: Install dependencies and build frontend
-          working-directory: ./frontend
-          run: |
-            yarn install
-            yarn build
+        # REMOVED: Install Node.js
+        # REMOVED: Install dependencies and build frontend
+        # The Dockerfile handles the frontend build now.
 
         - name: Log in to the Container registry
           uses: docker/login-action@v3
@@ -85,7 +78,6 @@ jobs:
               org.opencontainers.image.authors="Philipp Seelos"
               org.opencontainers.image.version=${{ steps.extract_info.outputs.version }}
               org.opencontainers.image.url=https://github.com/phiph-s/metermonitor-managementserver             
-           
 
         - name: Image digest
           run: echo ${{ steps.docker_build.outputs.digest }}

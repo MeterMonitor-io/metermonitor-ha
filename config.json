@@ -1,6 +1,6 @@
 {
   "name": "Meter Monitor",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "image": "ghcr.io/phiph-s/metermonitor-managementserver",
   "slug": "meter_monitor",
   "description": "Integrate ESP32 based meter monitor cams with Home Assistant using AI",
