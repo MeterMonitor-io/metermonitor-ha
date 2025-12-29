@@ -1,4 +1,4 @@
-v.2.1.0 - 29.12.2025
+v.2.0.5 - 29.12.2025
 - Switched to ONNX Runtime for inference (~20% RAM usage, a lot faster on CPU)
 
 v.2.0.0 - 29.12.2025
