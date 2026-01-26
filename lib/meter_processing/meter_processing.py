@@ -100,10 +100,6 @@ class MeterPredictor:
         left = (target_size - new_w) // 2
         canvas[top:top+new_h, left:left+new_w] = img_resized
 
-        # Convert RGB to BGR if needed
-        if len(canvas.shape) == 3 and canvas.shape[2] == 3:
-            canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
-
         # Normalize and prepare for ONNX (CHW format)
         img_normalized = canvas.astype(np.float32) / 255.0
         img_transposed = img_normalized.transpose(2, 0, 1)  # HWC to CHW
