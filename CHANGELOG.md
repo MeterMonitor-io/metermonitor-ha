@@ -1,3 +1,14 @@
+v.2.1.1 - 26.01.2026
+- Added sparkline chart to water meter cards showing consumption history
+- Added "Clear Evaluations" button in meter details view
+- Added "Clear history" link in setup benchmark section
+- Benchmark now limits samples to available evaluations and shows message when too few historical images
+- Improved timestamp formatting across the UI (WaterMeterCard, MeterDetails)
+- Replaced checkboxes with switches in segmentation configurator
+- Card title now truncates with ellipsis when too long
+- Meter view now refreshes after dataset upload
+- Removed unnecessary log output
+
 v.2.1.0 - 26.01.2026
 - Fixed BGR/RGB color space issue in YOLO model inference, significantly improving detection accuracy
 - Added automatic threshold grid search: Finds optimal threshold values by maximizing model confidence

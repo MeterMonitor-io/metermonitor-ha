@@ -13,6 +13,7 @@ export const useSetupStore = defineStore('setup', () => {
   const runningBenchmark = ref(false);
   const searchingThresholds = ref(false);
   const thresholdSearchResult = ref(null);
+  const tooFewEvaluations = ref(false);
 
   // Actions
   const searchThresholds = async (meterId, steps = 10) => {
@@ -151,14 +152,38 @@ export const useSetupStore = defineStore('setup', () => {
     }
   };
 
-  const requestReevaluatedDigits = async (meterId, amount = 10) => {
+  const requestReevaluatedDigits = async (meterId, maxAmount = 10) => {
     // Clear existing examples and reset cancellation flag
     randomExamples.value = [];
     loadingCancelled.value = false;
     runningBenchmark.value = true;
+    tooFewEvaluations.value = false;
 
     try {
-      for (let offset = 0; offset < amount; offset++) {
+      // First, get the count of available evaluations
+      const countResponse = await apiService.get(`api/watermeters/${meterId}/evals/count`);
+      if (!countResponse.ok) {
+        console.error('Failed to get evaluation count');
+        runningBenchmark.value = false;
+        return;
+      }
+
+      const countResult = await countResponse.json();
+      const availableCount = countResult.count;
+
+      // Need at least 2 evaluations to run benchmark (1 is the current one)
+      if (availableCount < 2) {
+        console.log('Too few evaluations for benchmark');
+        tooFewEvaluations.value = true;
+        runningBenchmark.value = false;
+        return;
+      }
+
+      // Limit amount to available evaluations (minus 1 for current)
+      const amount = Math.min(maxAmount, availableCount - 1);
+      const usedOffsets = new Set();
+
+      for (let i = 0; i < amount; i++) {
         // Check if loading was cancelled
         if (loadingCancelled.value) {
           console.log('Sample loading cancelled');
@@ -173,7 +198,6 @@ export const useSetupStore = defineStore('setup', () => {
 
           if (result.error) {
             console.error('get_reevaluated_digits error', result.error);
-            // Stop loading on error
             break;
           }
 
@@ -182,8 +206,7 @@ export const useSetupStore = defineStore('setup', () => {
             randomExamples.value.push(result);
           }
         } else {
-          console.error('Failed to fetch sample at offset', offset);
-          // Stop loading if request fails
+          console.error('Failed to fetch sample');
           break;
         }
       }
@@ -238,6 +261,7 @@ export const useSetupStore = defineStore('setup', () => {
     loadingCancelled.value = false;
     searchingThresholds.value = false;
     thresholdSearchResult.value = null;
+    tooFewEvaluations.value = false;
   }
 
   return {
@@ -249,6 +273,7 @@ export const useSetupStore = defineStore('setup', () => {
     runningBenchmark,
     searchingThresholds,
     thresholdSearchResult,
+    tooFewEvaluations,
     // Actions
     reset,
     redoDigitEval,

@@ -22,6 +22,7 @@
           :downloadingDataset="downloadingDataset"
           @resetToSetup="resetToSetup"
           @deleteMeter="deleteMeter"
+          @clearEvaluations="clearEvaluations"
           @downloadDataset="downloadDataset"
           @deleteDataset="deleteDataset"
         />
@@ -47,6 +48,7 @@
           :downloadingDataset="downloadingDataset"
           @resetToSetup="resetToSetup"
           @deleteMeter="deleteMeter"
+          @clearEvaluations="clearEvaluations"
           @downloadDataset="downloadDataset"
           @deleteDataset="deleteDataset"
         />
@@ -180,6 +182,33 @@ const deleteDataset = async () => {
     }
   } catch (err) {
     console.log('Error deleting dataset:', err);
+  }
+};
+
+const clearEvaluations = async () => {
+  try {
+    const response = await fetch(host + 'api/watermeters/' + id + '/evals', {
+      method: 'DELETE',
+      headers: { secret: localStorage.getItem('secret') }
+    });
+
+    if (response.status === 200) {
+      const result = await response.json();
+      console.log(`Cleared ${result.count} evaluations`);
+
+      // Re-evaluate latest picture to restore state
+      await fetch(host + 'api/watermeters/' + id + '/evaluations/reevaluate', {
+        method: 'POST',
+        headers: { secret: localStorage.getItem('secret') }
+      });
+
+      // Reload meter data to update evaluations
+      await loadMeter();
+    } else {
+      console.log('Error clearing evaluations');
+    }
+  } catch (err) {
+    console.log('Error clearing evaluations:', err);
   }
 };
 </script>

@@ -16,20 +16,29 @@
       </n-flex><br>
       <n-flex align="center">
         <n-badge
-            v-if="randomExamples && randomExamples.length === 10"
+            v-if="randomExamples && randomExamples.length > 0 && !useSetupStore().runningBenchmark"
           :value="loading ? '' : `${averageConfidence}%`"
           :processing="loading"
           :type="getBadgeType(averageConfidence)"
           :show="randomExamples && randomExamples.length > 0"
         >
         </n-badge>
-        <span style="font-weight: 500;" v-if="randomExamples && randomExamples.length === 10">
-          Average Confidence on digits from {{ randomExamples ? randomExamples.length : 0 }} random historical evaluations.
+        <span style="font-weight: 500;" v-if="randomExamples && randomExamples.length > 0 && !useSetupStore().runningBenchmark">
+          Average Confidence on digits from {{ randomExamples.length }} random historical evaluation{{ randomExamples.length > 1 ? 's' : '' }}.
+          <n-popconfirm @positive-click="clearHistoryAndRebenchmark">
+            <template #trigger>
+              <a href="#" @click.prevent style="font-weight: normal; font-size: 12px; margin-left: 8px; opacity: 0.6;">Clear history</a>
+            </template>
+            This will delete all historic evaluations. Are you sure?
+          </n-popconfirm>
         </span>
-        <template v-else-if="randomExamples && randomExamples.length > 0" >
-          Benchmarking on 10 past evaluations...
-          <n-progress type="line" :percentage="randomExamples.length * 10"></n-progress>
+        <template v-else-if="useSetupStore().runningBenchmark">
+          Benchmarking on past evaluations...
+          <n-progress type="line" :percentage="randomExamples.length * 10" :show-indicator="false" style="width: 100px;"></n-progress>
         </template>
+        <span v-else-if="useSetupStore().tooFewEvaluations" style="opacity: 0.6;">
+          Too few historical images to run benchmark.
+        </span>
         <span v-else>
           Press "Apply" to evaluate and run the benchmark.
         </span>
@@ -114,13 +123,15 @@ import {
   NCollapse,
   NCollapseItem,
   NBadge,
+  NPopconfirm,
   useDialog,
   NTooltip, NTag
 } from 'naive-ui';
 import router from "@/router";
 import {useSetupStore} from "@/stores/setupStore";
+import {apiService} from "@/services/api";
 
-const emit = defineEmits(['set-loading', 'request-random-example', 'update-max-flow', 'update-conf-threshold']);
+const emit = defineEmits(['set-loading', 'request-random-example', 'update-max-flow', 'update-conf-threshold', 'clear-evaluations']);
 
 const props = defineProps([
     'meterid',
@@ -172,6 +183,27 @@ const getBadgeType = (confidence) => {
   if (confidence >= 90) return 'success';
   if (confidence >= 75) return 'warning';
   return 'error';
+};
+
+const clearHistoryAndRebenchmark = async () => {
+  try {
+    const response = await apiService.delete(`api/watermeters/${props.meterid}/evals`);
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`Cleared ${result.count} evaluations`);
+
+      // Re-evaluate latest picture first to restore setup state
+      await apiService.post(`api/watermeters/${props.meterid}/evaluations/reevaluate`);
+
+      // Emit event and re-run benchmark
+      emit('clear-evaluations');
+      emit('request-random-example');
+    } else {
+      console.error('Error clearing evaluations');
+    }
+  } catch (err) {
+    console.error('Error clearing evaluations:', err);
+  }
 };
 
 

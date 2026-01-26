@@ -1,6 +1,6 @@
 <template>
   <div style="height: calc(100vh - 200px); border-radius: 15px; overflow-y: scroll; overflow-x: hidden;" class="bglight">
-    <div v-if="evaluations.length === 0" style="padding: 20px; width: 430px; margin-top: 20%;">
+    <div v-if="evaluations.length === 0" style="padding: 20px; width: 100%; margin-top: 20%;">
       <n-empty description="Waiting for the first images...">
       </n-empty>
     </div>

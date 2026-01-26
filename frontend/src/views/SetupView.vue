@@ -104,6 +104,7 @@
             @updateConfThreshold="(data) => setupStore.updateConfThreshold(data, id)"
             @set-loading="setupStore.setLoading"
             @request-random-example="() => setupStore.requestReevaluatedDigits(id)"
+            @clear-evaluations="() => setupStore.clearEvaluationExamples()"
             :meterid="id"
             :confidence-threshold="confThreshold"
             :timestamp="lastPicture.picture.timestamp"

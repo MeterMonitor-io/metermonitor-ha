@@ -36,12 +36,10 @@ def reevaluate_digits(db_file: str, name: str, meter_preditor, config, offset: i
             ''', (name,))
         row = cursor.fetchone()
         if not row:
-            print(f"[ExampleSet ({name})] No evaluations found for {name}")
             return {"error": "No evaluations found"}
 
         # parse the eval (json)
         raw_images = json.loads(row[0])
-        print (f"[ExampleSet ({name})] Found example set, {len(raw_images)} images")
 
         # convert to np arrays (from base64)
         digits = []
@@ -67,7 +65,6 @@ def reevaluate_digits(db_file: str, name: str, meter_preditor, config, offset: i
                        ''', (name,))
         settings = cursor.fetchone()
         if not settings:
-            print(f"[ExampleSet ({name})] No settings found for {name}")
             return {"error": "Error fetching settings"}
         thresholds = [settings[0], settings[1]]
         thresholds_last = [settings[2], settings[3]]

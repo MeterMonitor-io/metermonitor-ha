@@ -2,7 +2,7 @@
   <div style="margin: 0 auto;">
     <n-card v-if="data" :title="id" size="small">
       <template #header-extra>
-        {{ new Date(data.picture.timestamp).toLocaleString() }}
+        {{ formattedTimestamp }}
       </template>
       <template #cover>
         <img
@@ -17,16 +17,25 @@
     <n-flex>
       <n-popconfirm @positive-click="emit('resetToSetup')">
         <template #trigger>
-          <n-button type="info" round style="width: 47%">
+          <n-button type="info" round style="width: 30%">
             Setup
           </n-button>
         </template>
         While the meter is in setup mode, no values will be published. Are you sure?
       </n-popconfirm>
 
+      <n-popconfirm @positive-click="emit('clearEvaluations')">
+        <template #trigger>
+          <n-button type="warning" ghost round style="width: 30%">
+            Clear Evals
+          </n-button>
+        </template>
+        This will delete all evaluations for this meter. Are you sure?
+      </n-popconfirm>
+
       <n-popconfirm @positive-click="emit('deleteMeter')">
         <template #trigger>
-          <n-button type="error" ghost round style="width: 47%">
+          <n-button type="error" ghost round style="width: 30%">
             Delete
           </n-button>
         </template>
@@ -75,19 +84,32 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits } from 'vue';
+import { defineProps, defineEmits, computed } from 'vue';
 import { NCard, NFlex, NButton, NPopconfirm, NList, NListItem, NThing, NIcon } from "naive-ui";
 import { DeleteForeverFilled } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 
-defineProps({
+const props = defineProps({
   data: Object,
   settings: Object,
   id: String,
   downloadingDataset: Boolean
 });
 
-const emit = defineEmits(['resetToSetup', 'deleteMeter', 'downloadDataset', 'deleteDataset']);
+const emit = defineEmits(['resetToSetup', 'deleteMeter', 'clearEvaluations', 'downloadDataset', 'deleteDataset']);
+
+const formattedTimestamp = computed(() => {
+  if (!props.data?.picture?.timestamp) return '';
+  const date = new Date(props.data.picture.timestamp);
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }) + ' · ' + date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+});
 </script>
 
 <style scoped>

@@ -577,6 +577,43 @@ def prepare_setup_app(config, lifespan):
             "th_digits_inverted": json.loads(row[9]) if row[9] else None
         } for row in cursor.fetchall()]}
 
+    @app.delete("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])
+    def delete_evals(name: str):
+        """Delete all evaluations for a watermeter."""
+        db = db_connection()
+        cursor = db.cursor()
+
+        # Check if watermeter exists
+        cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Watermeter not found")
+
+        # Count evaluations before deleting
+        cursor.execute("SELECT COUNT(*) FROM evaluations WHERE name = ?", (name,))
+        count = cursor.fetchone()[0]
+
+        # Delete all evaluations
+        cursor.execute("DELETE FROM evaluations WHERE name = ?", (name,))
+        db.commit()
+
+        print(f"[HTTP] Deleted {count} evaluations for watermeter {name}")
+        return {"message": f"Deleted {count} evaluations", "count": count}
+
+    @app.get("/api/watermeters/{name}/evals/count", dependencies=[Depends(authenticate)])
+    def get_evals_count(name: str):
+        """Get the number of evaluations for a watermeter."""
+        cursor = db_connection().cursor()
+
+        # Check if watermeter exists
+        cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Watermeter not found")
+
+        cursor.execute("SELECT COUNT(*) FROM evaluations WHERE name = ?", (name,))
+        count = cursor.fetchone()[0]
+
+        return {"count": count}
+
     # POST endpoint for adding an evaluation
     @app.post("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])
     def add_eval(name: str, eval_req: EvalRequest):
