@@ -20,11 +20,22 @@
               <tr>
                 <td style="vertical-align: top;">
                   <template v-if="evaluation.total_confidence">
-                    <div style="background-color: rgba(255,255,255,0.1); border-radius: 5px; padding: 5px;">
-                      Total Confidence:
+                    <div class="conf_box">
+                      Confidence
                       <div :style="{ color: getColor(usedConfidences[i]), fontSize: '20px' }">
-                        <b>{{ (usedConfidences[i] * 100).toFixed(1) }}</b>%&nbsp;
-                        <span :style="{ color: getColor(evaluation.total_confidence), fontSize: '13px' }">{{ (evaluation.total_confidence * 100).toFixed(1) }}%</span>
+                        <n-tooltip trigger="hover">
+                          <template #trigger>
+                            <span style="cursor: help;"><b>{{ (usedConfidences[i] * 100).toFixed(1) }}</b>%</span>
+                          </template>
+                          Used confidence: Only digits accepted by the correction algorithm
+                        </n-tooltip>
+                        <span style="margin: 0 4px;"></span>
+                        <n-tooltip trigger="hover">
+                          <template #trigger>
+                            <span :style="{ color: getColor(evaluation.total_confidence), fontSize: '13px', cursor: 'help' }">{{ (evaluation.total_confidence * 100).toFixed(1) }}%</span>
+                          </template>
+                          Total confidence: All recognized digits
+                        </n-tooltip>
                       </div>
                     </div>
                   </template>
@@ -132,7 +143,7 @@ import { ArchiveOutlined } from '@vicons/material';
 import DatasetUploader from "@/components/DatasetUploader.vue";
 
 const dialog = useDialog();
-const emit = defineEmits(['loadMore']);
+const emit = defineEmits(['loadMore', 'datasetUploaded']);
 
 const props = defineProps({
   evaluations: {
@@ -178,6 +189,9 @@ const openUploadDialog = (colored, thresholded, name, values) => {
       setvalues,
       onClose: () => {
         dialogInstance?.destroy();
+      },
+      onUploaded: () => {
+        emit('datasetUploaded');
       }
     }),
     closable: true,
@@ -269,6 +283,16 @@ const formattedTimestamp = (ts) => {
 
 .light-mode .top-border-divider {
   border-top: 2px solid rgba(0,0,0,0.6);
+}
+
+.conf_box{
+  background-color: rgba(255,255,255,0.1);
+  border-radius: 5px;
+  padding: 5px;
+}
+
+.light-mode .conf_box{
+  background-color: rgba(0,0,0,0.05);
 }
 
 </style>

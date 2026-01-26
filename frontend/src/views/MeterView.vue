@@ -28,7 +28,7 @@
       </n-tab-pane>
       <n-tab-pane name="evaluations" tab="Evaluations">
         <div style="padding-left: 10px; padding-right: 10px;" v-if="evaluations !== null">
-          <EvaluationResultList :evaluations="evaluations" :name="id" @load-more="loadMoreEvaluations"/>
+          <EvaluationResultList :evaluations="evaluations" :name="id" @load-more="loadMoreEvaluations" @dataset-uploaded="loadMeter"/>
         </div>
       </n-tab-pane>
       <n-tab-pane name="charts" tab="Charts">
@@ -52,7 +52,7 @@
         />
       </n-gi>
       <n-gi span="7" style="padding-left: 20px; padding-right: 10px;" v-if="evaluations !== null">
-        <EvaluationResultList :evaluations="evaluations" :name="id" @load-more="loadMoreEvaluations"/>
+        <EvaluationResultList :evaluations="evaluations" :name="id" @load-more="loadMoreEvaluations" @dataset-uploaded="loadMeter"/>
       </n-gi>
       <n-gi span="3" style="max-width: 500px;">
         <MeterCharts :history="history" />

@@ -2,7 +2,7 @@
   <template v-if="evaluation">
     <n-card>
       <n-flex justify="space-around" size="large">
-        <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in evaluation['th_digits'].entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D"/>
+        <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit theme-revert th" v-for="[i,base64] in evaluation['th_digits'].entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D"/>
       </n-flex>
       <n-flex justify="space-around" size="large">
         <span class="prediction google-sans-code" v-for="[i, digit] in evaluation['predictions'].entries()" :key="i + 'd'">
@@ -41,7 +41,7 @@
             <template v-for="[i, example] in randomExamples.entries()" :key="i + 'example'">
               <n-gi justify="space-around" size="small" v-for="[i,base64] in example['processed_images'].entries()" :key="i + 'x'" class="grid-container">
                 <img
-                    class="digit_small"
+                    class="digit_small theme-revert"
                     :src="'data:image/png;base64,' + base64"
                     alt="D"
                 />
@@ -251,14 +251,12 @@ function getColor(value) {
 .digit{
   width: 18px;
   height: auto;
-  mix-blend-mode: screen;
 }
 
 .digit_small{
   margin: 0px;
   width: 16px;
   height: auto;
-  mix-blend-mode: screen;
 }
 
 .prediction{

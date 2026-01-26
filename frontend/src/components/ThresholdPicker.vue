@@ -42,7 +42,7 @@
           <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit" v-for="[i,base64] in evaluation['colored_digits'].slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" />
         </n-flex>
         <br>
-        <n-flex justify="space-around" size="large" v-if="tresholdedImages">
+        <n-flex justify="space-around" size="large" v-if="tresholdedImages" class="theme-revert">
           <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in tresholdedImages.slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
         </n-flex>
         <br>
@@ -55,7 +55,7 @@
           <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit" v-for="[i,base64] in evaluation['colored_digits'].slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" />
         </n-flex>
         <br>
-        <n-flex justify="space-around" size="large" v-if="tresholdedImages">
+        <n-flex justify="space-around" size="large" v-if="tresholdedImages" class="theme-revert">
           <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in tresholdedImages.slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
         </n-flex>
         <br>
@@ -198,7 +198,6 @@ async function thresholdImage(base64, threshold, islanding_padding = 0) {
 .digit{
   width: 18px;
   height: auto;
-  mix-blend-mode: screen;
 }
 .th {
   border: 1px solid rgba(255, 255, 255, 0.16);

@@ -24,41 +24,46 @@
       :max="10"
       :min="5"
       :disabled="loading">
-    </n-input-number>
-    <n-divider dashed></n-divider>
-    <n-checkbox
-      :checked="extendedLastDigit"
-      @update:checked="handleUpdate('extendedLastDigit', $event)"
-      :disabled="loading">
+    </n-input-number><br>
+    <n-flex align="center" :size="8" class="padd">
+      <n-switch
+        :value="extendedLastDigit"
+        @update:value="handleUpdate('extendedLastDigit', $event)"
+        :disabled="loading"
+      />
       <n-tooltip>
         <template #trigger>
           <span>Extended last digit</span>
         </template>
         <span>Enable if the last digits display is bigger<br>compared to the other digits</span>
       </n-tooltip>
-    </n-checkbox><br>
-    <n-checkbox
-      :checked="last3DigitsNarrow"
-      @update:checked="handleUpdate('last3DigitsNarrow', $event)"
-      :disabled="loading">
+    </n-flex>
+    <n-flex align="center" :size="8" class="padd">
+      <n-switch
+        :value="last3DigitsNarrow"
+        @update:value="handleUpdate('last3DigitsNarrow', $event)"
+        :disabled="loading"
+      />
       <n-tooltip>
         <template #trigger>
           <span>Last 3 digits are narrow</span>
         </template>
         <span>Enable if the last three digits displays are narrower<br>compared to the other digits</span>
       </n-tooltip>
-    </n-checkbox><br>
-    <n-checkbox
-      :checked="rotated180"
-      @update:checked="handleUpdate('rotated180', $event)"
-      :disabled="loading">
+    </n-flex>
+    <n-flex align="center" :size="8">
+      <n-switch
+        :value="rotated180"
+        @update:value="handleUpdate('rotated180', $event)"
+        :disabled="loading"
+      />
       <n-tooltip>
         <template #trigger>
           <span>180° rotated</span>
         </template>
         <span>Enable if the captured image is rotated 180°</span>
       </n-tooltip>
-    </n-checkbox><br>
+    </n-flex>
     <template #action v-if="evaluation">
       <n-flex justify="space-around" :size="[0,0]">
         <div v-for="base64 in evaluation['colored_digits']" :key="base64">
@@ -78,7 +83,7 @@
 </template>
 
 <script setup>
-import {NCard, NFlex, NInputNumber, NCheckbox, NDivider, NButton, NTooltip, NAlert} from 'naive-ui';
+import {NCard, NFlex, NInputNumber, NSwitch, NDivider, NButton, NTooltip, NAlert} from 'naive-ui';
 import {defineProps, defineEmits, computed} from 'vue';
 
 const props = defineProps([
@@ -145,5 +150,9 @@ const handleUpdate = (field, value) => {
 
 .digit {
   height: auto;
+}
+
+.padd {
+  margin-bottom: 10px;
 }
 </style>
