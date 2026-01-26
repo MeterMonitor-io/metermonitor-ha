@@ -321,9 +321,17 @@ class MeterPredictor:
         rotated_cropped_img = cv2.warpPerspective(img, M, (max_width, max_height))
         rotated_cropped_img_ext = None
 
+        # Ensure we always split along the wider side (display digits are arranged horizontally).
+        # If the perspective warp ended up with height > width, rotate by 90° so width is the long edge.
+        # This prevents accidentally segmenting along the short edge.
+        if rotated_cropped_img is not None and rotated_cropped_img.shape[0] > rotated_cropped_img.shape[1]:
+            rotated_cropped_img = cv2.rotate(rotated_cropped_img, cv2.ROTATE_90_CLOCKWISE)
+
         # Cut out a larger area for the last digit
         if extended_last_digit:
             rotated_cropped_img_ext = cv2.warpPerspective(img, M, (max_width, int(max_height * 1.2)))
+            if rotated_cropped_img_ext is not None and rotated_cropped_img_ext.shape[0] > rotated_cropped_img_ext.shape[1]:
+                rotated_cropped_img_ext = cv2.rotate(rotated_cropped_img_ext, cv2.ROTATE_90_CLOCKWISE)
 
         # Split the cropped meter into segments vertical parts for classification
         if (segments == 0): return [],[]
