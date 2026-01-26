@@ -7,6 +7,7 @@
       type="area"
       :options="chartOptions"
       :series="series"
+      :key="'chart-' + isDark"
     ></apexchart>
     <div v-else style="text-align: center; padding: 20px;">
       No history data available
@@ -19,12 +20,18 @@
       type="line"
       :options="confidenceChartOptions"
       :series="confidenceSeries"
+      :key="'conf-chart-' + isDark"
     ></apexchart>
   </div>
 </template>
 
 <script setup>
 import { computed, defineProps } from 'vue';
+import { useThemeStore } from '@/stores/themeStore';
+import { storeToRefs } from 'pinia';
+
+const themeStore = useThemeStore();
+const { isDark } = storeToRefs(themeStore);
 
 const props = defineProps({
   history: {
@@ -72,8 +79,8 @@ const confidenceSeries = computed(() => {
   }];
 });
 
-const chartOptions = {
-  theme: { mode: 'dark' },
+const chartOptions = computed(() => ({
+  theme: { mode: isDark.value ? 'dark' : 'light' },
   title: {
     text: 'Consumption',
   },
@@ -85,10 +92,10 @@ const chartOptions = {
   xaxis: {
     type: "datetime",
     labels: {
-      rotate: -30, // Less rotation for compactness
-      format: "dd MMM HH:mm", // Shorter date format
+      rotate: -30,
+      format: "dd MMM HH:mm",
     },
-    tickAmount: 5, // Reduces number of ticks for compactness
+    tickAmount: 5,
   },
   yaxis: {
     title: {text: 'Consumption m³'},
@@ -99,10 +106,10 @@ const chartOptions = {
   tooltip: {
     x: { format: 'dd MMM HH:mm' },
   }
-};
+}));
 
-const confidenceChartOptions = {
-  theme: { mode: 'dark' },
+const confidenceChartOptions = computed(() => ({
+  theme: { mode: isDark.value ? 'dark' : 'light' },
   title: {
     text: 'Confidence',
   },
@@ -114,10 +121,10 @@ const confidenceChartOptions = {
   xaxis: {
     type: "datetime",
     labels: {
-      rotate: -30, // Less rotation for compactness
-      format: "dd MMM HH:mm", // Shorter date format
+      rotate: -30,
+      format: "dd MMM HH:mm",
     },
-    tickAmount: 5, // Reduces number of ticks for compactness
+    tickAmount: 5,
   },
   yaxis: {
     title: {text: 'Confidence %'},
@@ -127,12 +134,12 @@ const confidenceChartOptions = {
   tooltip: {
     x: { format: 'dd MMM HH:mm' },
   }
-};
+}));
 </script>
 
 <style scoped>
 .bg {
-  background-color: rgba(240, 240, 240, 0.1);
+  background-color: rgba(128, 128, 128, 0.1);
   padding: 20px;
   border-radius: 15px;
   margin-bottom: 15px;

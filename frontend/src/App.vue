@@ -3,6 +3,27 @@
   <n-space vertical size="large">
     <n-layout>
       <n-layout-content content-style="padding: 24px;">
+        <!-- Theme toggle in top-right corner -->
+        <div style="position: fixed; top: 12px; right: 12px; z-index: 1000;">
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button
+                circle
+                quaternary
+                size="small"
+                @click="cycleTheme"
+              >
+                <template #icon>
+                  <n-icon size="18">
+                    <LightModeOutlined v-if="!isDark" />
+                    <DarkModeOutlined v-else />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            {{ themeTooltip }}
+          </n-tooltip>
+        </div>
         <router-view></router-view>
       </n-layout-content>
     </n-layout>
@@ -11,9 +32,32 @@
 </template>
 
 <script setup>
-import {NLayout, NLayoutContent, NSpace, useNotification} from 'naive-ui';
-import {onMounted, onUnmounted, ref} from "vue";
+import {NLayout, NLayoutContent, NSpace, NButton, NIcon, NTooltip, useNotification} from 'naive-ui';
+import { LightModeOutlined, DarkModeOutlined } from '@vicons/material';
+import {onMounted, onUnmounted, ref, computed} from "vue";
 import router from "@/router";
+import { useThemeStore } from '@/stores/themeStore';
+import { storeToRefs } from 'pinia';
+
+const themeStore = useThemeStore();
+const { isDark, themeMode, isHomeAssistant } = storeToRefs(themeStore);
+
+const themeTooltip = computed(() => {
+  if (themeMode.value === 'auto') {
+    return isHomeAssistant.value
+      ? 'Auto (synced with Home Assistant)'
+      : 'Auto (follows system)';
+  }
+  return themeMode.value === 'dark' ? 'Dark mode' : 'Light mode';
+});
+
+const cycleTheme = () => {
+  // Cycle: auto -> light -> dark -> auto
+  const modes = ['auto', 'light', 'dark'];
+  const currentIndex = modes.indexOf(themeMode.value);
+  const nextIndex = (currentIndex + 1) % modes.length;
+  themeStore.setThemeMode(modes[nextIndex]);
+};
 
 const alerts = ref([]);
 
@@ -53,9 +97,6 @@ onUnmounted(() => {
 
 </script>
 <style>
-body{
-  background-color: #111111;
-}
 
 .apexcharts-tooltip {
   background: #f3f3f3;
