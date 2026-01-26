@@ -11,8 +11,55 @@ export const useSetupStore = defineStore('setup', () => {
   const loading = ref(false);
   const loadingCancelled = ref(false);
   const runningBenchmark = ref(false);
+  const searchingThresholds = ref(false);
+  const thresholdSearchResult = ref(null);
 
   // Actions
+  const searchThresholds = async (meterId, steps = 10) => {
+    const watermeterStore = useWatermeterStore();
+
+    searchingThresholds.value = true;
+    thresholdSearchResult.value = null;
+
+    try {
+      const response = await apiService.post(`api/watermeters/${meterId}/search_thresholds`, { steps });
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (result.error) {
+          console.error('Threshold search error:', result.error);
+          thresholdSearchResult.value = { error: result.error };
+          return null;
+        }
+
+        thresholdSearchResult.value = result;
+
+        // Apply the found thresholds to settings
+        watermeterStore.settings.threshold_low = result.threshold[0];
+        watermeterStore.settings.threshold_high = result.threshold[1];
+        watermeterStore.settings.threshold_last_low = result.threshold_last[0];
+        watermeterStore.settings.threshold_last_high = result.threshold_last[1];
+
+        // Save settings to backend
+        await watermeterStore.updateSettings(meterId);
+
+        console.log('Threshold search completed:', result);
+        return result;
+      } else {
+        console.error('Threshold search failed:', response.status);
+        thresholdSearchResult.value = { error: `Request failed: ${response.status}` };
+        return null;
+      }
+    } catch (e) {
+      console.error('Threshold search exception:', e);
+      thresholdSearchResult.value = { error: e.message };
+      return null;
+    } finally {
+      searchingThresholds.value = false;
+    }
+  };
+
   const nextStep = (step) => {
     if (step === 1) {
       currentStep.value = 2;
@@ -189,6 +236,8 @@ export const useSetupStore = defineStore('setup', () => {
     noBoundingBox.value = false;
     loading.value = false;
     loadingCancelled.value = false;
+    searchingThresholds.value = false;
+    thresholdSearchResult.value = null;
   }
 
   return {
@@ -198,11 +247,14 @@ export const useSetupStore = defineStore('setup', () => {
     noBoundingBox,
     loading,
     runningBenchmark,
+    searchingThresholds,
+    thresholdSearchResult,
     // Actions
     reset,
     redoDigitEval,
     nextStep,
     setLoading,
+    searchThresholds,
     updateThresholds,
     updateMaxFlow,
     updateConfThreshold,

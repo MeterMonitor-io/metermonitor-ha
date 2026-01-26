@@ -23,6 +23,7 @@ from lib.functions import reevaluate_latest_picture, add_history_entry, reevalua
 from lib.meter_processing.meter_processing import MeterPredictor
 from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
+from lib.threshold_optimizer import search_thresholds_for_meter
 
 
 # http server class
@@ -120,6 +121,9 @@ def prepare_setup_app(config, lifespan):
         labels: List[str]
         colored: List[str]
         thresholded: List[str]
+
+    class ThresholdSearchRequest(BaseModel):
+        steps: int = 10
 
     # Helper to sanitize meter name for filenames
     def _sanitize_name(name: str) -> str:
@@ -457,6 +461,52 @@ def prepare_setup_app(config, lifespan):
         )
         db.commit()
         return {"message": "Settings updated", "name": name}
+
+    @app.post("/api/watermeters/{name}/search_thresholds", dependencies=[Depends(authenticate)])
+    def search_thresholds(name: str, request: ThresholdSearchRequest):
+        """
+        Search for optimal threshold values by maximizing digit recognition confidence.
+
+        This endpoint performs a grid search over threshold values and returns the
+        combination that yields the highest confidence from the digit recognition model.
+
+        Args:
+            name: Water meter name
+            request: ThresholdSearchRequest with steps parameter (3-25)
+
+        Returns:
+            Optimal threshold values and confidence metrics
+        """
+        # Validate meter exists
+        cursor = db_connection().cursor()
+        cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Watermeter not found")
+
+        # Clamp steps to valid range
+        steps = max(3, min(request.steps, 25))
+
+        print(f"[HTTP] Starting threshold search for {name} with steps={steps}")
+
+        try:
+            result = search_thresholds_for_meter(
+                config['dbfile'],
+                name,
+                meter_preditor,
+                steps=steps
+            )
+
+            if "error" in result:
+                print(f"[HTTP] Threshold search error: {result['error']}")
+            else:
+                print(f"[HTTP] Threshold search completed: threshold={result['threshold']}, "
+                      f"threshold_last={result['threshold_last']}, avg_conf={result.get('avg_confidence', 0):.3f}")
+
+            return result
+
+        except Exception as e:
+            print(f"[HTTP] Threshold search failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Threshold search failed: {str(e)}")
 
     @app.post("/api/watermeters/{name}/evaluations/reevaluate", dependencies=[Depends(authenticate)])
     def reevaluate_latest(name: str):

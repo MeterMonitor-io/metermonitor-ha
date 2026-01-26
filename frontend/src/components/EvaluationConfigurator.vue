@@ -24,7 +24,7 @@
         >
         </n-badge>
         <span style="font-weight: 500;" v-if="randomExamples && randomExamples.length === 10">
-          Average Confidence on digits from {{ randomExamples ? randomExamples.length : 0 }} historical evaluations.
+          Average Confidence on digits from {{ randomExamples ? randomExamples.length : 0 }} random historical evaluations.
         </span>
         <template v-else-if="randomExamples && randomExamples.length > 0" >
           Benchmarking on 10 past evaluations...

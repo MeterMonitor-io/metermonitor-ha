@@ -1,5 +1,41 @@
 <template>
   <n-card>
+    <!-- Search controls -->
+    <n-flex align="center" justify="space-between" style="margin-bottom: 8px">
+      <n-flex align="center" :size="8">
+        <n-input-group>
+          <n-input-group-label size="small">Depth:</n-input-group-label>
+          <n-input-number
+            v-model:value="searchSteps"
+            :min="3"
+            :max="25"
+            size="small"
+            style="width: 80px;"
+            :disabled="isDisabled"
+          />
+          <n-button
+            @click="startThresholdSearch"
+            size="small"
+            :loading="searchingThresholds"
+            :disabled="isDisabled"
+          >
+            Search Thresholds
+          </n-button>
+        </n-input-group>
+      </n-flex>
+    </n-flex>
+
+    <!-- Search status indicator -->
+    <div v-if="searchingThresholds" style="text-align: center; padding: 8px; margin-bottom: 10px; background: rgba(24, 160, 88, 0.15); border-radius: 4px; font-size: 12px;">
+      Searching for optimal thresholds...
+    </div>
+
+    <!-- Search result indicator -->
+    <div v-if="thresholdSearchResult && !thresholdSearchResult.error && !searchingThresholds"
+         style="text-align: center; padding: 8px; margin-bottom: 10px; background: rgba(24, 160, 88, 0.15); border-radius: 4px; font-size: 12px;">
+      ✓ Found: Confidence {{ (thresholdSearchResult.avg_confidence * 100).toFixed(1) }}%
+    </div>
+
     <n-flex :size="[0,0]" justify="space-around" align="center">
       <div>
         <n-flex justify="space-around" size="large" v-if="evaluation">
@@ -10,7 +46,7 @@
           <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in tresholdedImages.slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
         </n-flex>
         <br>
-        <n-slider :value="currentThreshold" @update:value="updateThreshold" range :step="1" :max="255" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="loading"/>
+        <n-slider :value="currentThreshold" @update:value="updateThreshold" range :step="1" :max="255" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="isDisabled"/>
         {{currentThreshold[0]}} - {{currentThreshold[1]}}
       </div>
       <n-divider vertical />
@@ -23,19 +59,21 @@
           <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in tresholdedImages.slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
         </n-flex>
         <br>
-        <n-slider :value="currentThresholdLast" @update:value="updateThresholdLast" range :step="1" :max="255" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="loading"/>
+        <n-slider :value="currentThresholdLast" @update:value="updateThresholdLast" range :step="1" :max="255" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="isDisabled"/>
         {{currentThresholdLast[0]}} - {{currentThresholdLast[1]}}
       </div>
     </n-flex>
+
     <n-divider></n-divider>
     Extraction padding
-      <n-slider :value="currentIslandingPadding" @update:value="updateIslandingPadding" :step="1" :max="100" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="loading"/>
+      <n-slider :value="currentIslandingPadding" @update:value="updateIslandingPadding" :step="1" :max="100" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="isDisabled"/>
+
     <template #action>
       <n-flex justify="end" size="large">
         <n-button
             @click="() => {emits('reevaluate');emits('next')}"
             round
-            :disabled="loading"
+            :disabled="isDisabled"
         >Apply</n-button>
       </n-flex>
     </template>
@@ -43,18 +81,20 @@
 </template>
 
 <script setup>
-import {NFlex, NCard, NDivider, NButton, NSlider} from "naive-ui";
-import {defineProps, defineEmits, ref, watch, onMounted} from 'vue';
+import {NFlex, NCard, NDivider, NButton, NSlider, NInputNumber, NSpin, NInputGroup, NInputGroupLabel} from 'naive-ui';
+import {defineProps, defineEmits, ref, watch, onMounted, computed} from 'vue';
 
 const props = defineProps([
     'evaluation',
     'threshold',
     'threshold_last',
     'islanding_padding',
-    'loading'
+    'loading',
+    'searchingThresholds',
+    'thresholdSearchResult'
 ]);
 
-const emits = defineEmits(['update', 'reevaluate', 'next']);
+const emits = defineEmits(['update', 'reevaluate', 'next', 'searchThresholds']);
 
 const currentThreshold = ref(props.threshold);
 const currentThresholdLast = ref(props.threshold_last);
@@ -62,6 +102,9 @@ const currentIslandingPadding = ref(props.islanding_padding);
 
 const tresholdedImages = ref([]);
 const refreshing = ref(false);
+const searchSteps = ref(10);
+
+const isDisabled = computed(() => props.loading || props.searchingThresholds);
 
 const updateThreshold = (value) => {
   currentThreshold.value = value;
@@ -75,6 +118,10 @@ const updateIslandingPadding = (value) => {
   currentIslandingPadding.value = value;
 };
 
+const startThresholdSearch = () => {
+  emits('searchThresholds', searchSteps.value);
+};
+
 onMounted(() => {
   refreshThresholds();
 });
@@ -85,14 +132,17 @@ watch(() => props.evaluation, () => {
 
 watch(() => props.threshold, (newVal) => {
   currentThreshold.value = newVal;
+  refreshThresholds();
 });
 
 watch(() => props.threshold_last, (newVal) => {
   currentThresholdLast.value = newVal;
+  refreshThresholds();
 });
 
 watch(() => props.islanding_padding, (newVal) => {
   currentIslandingPadding.value = newVal;
+  refreshThresholds();
 });
 
 const sendUpdate = () => {

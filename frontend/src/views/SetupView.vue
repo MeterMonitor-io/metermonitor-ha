@@ -26,7 +26,7 @@
             :loading="loading"
             :no-bounding-box="noBoundingBox"
             @update="(newSettings) => setupStore.updateSegmentationSettings(newSettings, id)"
-            @next="() => {setupStore.nextStep(1); currentlyFocusedStep = 2;}"
+            @next="onSegmentationNext"
             @click="(e) => e.stopPropagation()"
         />
         <br>
@@ -61,9 +61,12 @@
             :threshold_last="thresholdLast"
             :islanding_padding="islandingPadding"
             :loading="loading"
+            :searching-thresholds="searchingThresholds"
+            :threshold-search-result="thresholdSearchResult"
             @update="(data) => setupStore.updateThresholds(data, id)"
             @reevaluate="() => setupStore.redoDigitEval(id) && setupStore.clearEvaluationExamples(id)"
             @next="() =>  {setupStore.nextStep(2); currentlyFocusedStep = 3}"
+            @search-thresholds="(steps) => setupStore.searchThresholds(id, steps)"
             @click="(e) => e.stopPropagation()"
         />
         <br>
@@ -155,7 +158,7 @@ const currentlyFocusedStep = ref(1);
 
 // Get reactive state from stores
 const { lastPicture, evaluation, settings } = storeToRefs(watermeterStore);
-const { currentStep, randomExamples, noBoundingBox, loading } = storeToRefs(setupStore);
+const { currentStep, randomExamples, noBoundingBox, loading, searchingThresholds, thresholdSearchResult } = storeToRefs(setupStore);
 
 const threshold = computed(() => [settings.value?.threshold_low || 0, settings.value?.threshold_high || 0]);
 const thresholdLast = computed(() => [settings.value?.threshold_last_low || 0, settings.value?.threshold_last_high || 0]);
@@ -171,6 +174,15 @@ const confThreshold = computed(() => settings.value?.conf_threshold);
 const tresholdedImages = computed(() => {
   return evaluation.value?.tresholded_images || [];
 });
+
+// Handler for segmentation step completion - triggers auto threshold search
+const onSegmentationNext = () => {
+  setupStore.nextStep(1);
+  currentlyFocusedStep.value = 2;
+
+  // Automatically start threshold search with default depth (10)
+  setupStore.searchThresholds(id, 10);
+};
 
 onMounted(() => {
   setupStore.reset();
