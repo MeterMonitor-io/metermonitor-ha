@@ -1,8 +1,10 @@
 <template>
   <n-card>
     <template #cover>
-      <img v-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" />
-      <span style="color: rgba(255,255,255,0.3)">{{new Date(timestamp).toLocaleString()}}</span><br>
+      <div class="image-container">
+        <img v-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" />
+        <span class="timestamp-overlay">{{ formattedTimestamp }}</span>
+      </div>
     </template>
     <br>
 
@@ -77,7 +79,7 @@
 
 <script setup>
 import {NCard, NFlex, NInputNumber, NCheckbox, NDivider, NButton, NTooltip, NAlert} from 'naive-ui';
-import {defineProps, defineEmits} from 'vue';
+import {defineProps, defineEmits, computed} from 'vue';
 
 const props = defineProps([
     'lastPicture',
@@ -92,6 +94,19 @@ const props = defineProps([
 ]);
 const emits = defineEmits(['update', 'next']);
 
+const formattedTimestamp = computed(() => {
+  if (!props.timestamp) return '';
+  const date = new Date(props.timestamp);
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }) + ' · ' + date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+});
+
 const handleUpdate = (field, value) => {
   emits('update', {
     segments: field === 'segments' ? value : props.segments,
@@ -105,8 +120,30 @@ const handleUpdate = (field, value) => {
 
 
 <style scoped>
+.image-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
 
-.digit{
+.image-container img {
+  width: 100%;
+  display: block;
+}
+
+.timestamp-overlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  backdrop-filter: blur(4px);
+}
+
+.digit {
   height: auto;
 }
 </style>

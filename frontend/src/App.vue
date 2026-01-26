@@ -110,4 +110,8 @@ onUnmounted(() => {
   font-style: normal;
 }
 
+.light-mode .theme-revert {
+  mix-blend-mode: multiply;
+  filter: invert(1);
+}
 </style>

@@ -5,7 +5,7 @@
         ← Back
       </n-button>
     </router-link>
-    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;" />
+    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;" class="theme-revert"/>
     <n-button :loading="loading" @click="loadMeter" round size="large" style="margin-left: 20px;">
       Refresh
     </n-button>

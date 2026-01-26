@@ -1,5 +1,5 @@
 <template>
-  <div style="height: calc(100vh - 200px); border-radius: 15px; overflow: scroll;" class="bglight">
+  <div style="height: calc(100vh - 200px); border-radius: 15px; overflow-y: scroll; overflow-x: hidden;" class="bglight">
     <div v-if="evaluations.length === 0" style="padding: 20px; width: 430px; margin-top: 20%;">
       <n-empty description="Waiting for the first images...">
       </n-empty>
@@ -9,9 +9,9 @@
         <n-flex :class="{ redbg: evaluation.result == null, econtainer: true }">
           <table>
             <tbody>
-              <tr>
+              <tr class="top-tr">
                 <td>
-                  {{ new Date(evaluation.timestamp).toLocaleString() }}
+                  {{ formattedTimestamp(evaluation.timestamp) }}
                 </td>
                 <td colspan="100%" style="text-align: right;" v-if="evaluation.outdated">
                   <b>OUTDATED</b>
@@ -22,8 +22,9 @@
                   <template v-if="evaluation.total_confidence">
                     <div style="background-color: rgba(255,255,255,0.1); border-radius: 5px; padding: 5px;">
                       Total Confidence:
-                      <div :style="{ color: getColor(evaluation.total_confidence), fontSize: '20px' }">
-                        <b>{{ (evaluation.total_confidence * 100).toFixed(1) }}</b>%
+                      <div :style="{ color: getColor(usedConfidences[i]), fontSize: '20px' }">
+                        <b>{{ (usedConfidences[i] * 100).toFixed(1) }}</b>%&nbsp;
+                        <span :style="{ color: getColor(evaluation.total_confidence), fontSize: '13px' }">{{ (evaluation.total_confidence * 100).toFixed(1) }}%</span>
                       </div>
                     </div>
                   </template>
@@ -31,7 +32,7 @@
                     Rejected
                   </div>
                 </td>
-                <td v-for="(base64, j) in evaluation.th_digits_inverted" :key="evaluation.id + '-' + j">
+                <td v-for="(base64, j) in evaluation.th_digits_inverted" :key="evaluation.id + '-' + j" class="theme-revert">
                   <img class="digit" :src="'data:image/png;base64,' + base64" alt="Watermeter" />
                 </td>
                 <td>
@@ -90,7 +91,8 @@
                 <td
                   v-for="[i, digit] in (evaluation.result + '').padStart(evaluation.th_digits.length, '0').split('').entries()"
                   :key="i + 'f'"
-                  style="text-align: center; border-top: 2px solid rgba(255,255,255,0.6)"
+                  style="text-align: center; "
+                  class="top-border-divider"
                 >
                   <span
                     :class="{
@@ -124,7 +126,7 @@
 </template>
 
 <script setup>
-import { defineProps, h, defineEmits } from 'vue';
+import {defineProps, h, defineEmits, computed} from 'vue';
 import {NFlex, NTooltip, NEmpty, NButton, NIcon, useDialog} from 'naive-ui';
 import { ArchiveOutlined } from '@vicons/material';
 import DatasetUploader from "@/components/DatasetUploader.vue";
@@ -132,7 +134,7 @@ import DatasetUploader from "@/components/DatasetUploader.vue";
 const dialog = useDialog();
 const emit = defineEmits(['loadMore']);
 
-defineProps({
+const props = defineProps({
   evaluations: {
     type: Array,
     default: () => []
@@ -141,6 +143,20 @@ defineProps({
     type: String,
     default: ''
   }
+});
+
+// Pre-compute used confidence for all evaluations
+const usedConfidences = computed(() => {
+  return props.evaluations.map(evaluation => {
+    if (!evaluation.predictions || !evaluation.denied_digits) return 1.0;
+    let combinedConfidence = 1.0;
+    for (let i = 0; i < evaluation.predictions.length; i++) {
+      if (!evaluation.denied_digits[i]) {
+        combinedConfidence *= evaluation.predictions[i][0][1];
+      }
+    }
+    return combinedConfidence;
+  });
 });
 
 const getColor = (value) => {
@@ -168,6 +184,19 @@ const openUploadDialog = (colored, thresholded, name, values) => {
     style: { width: '600px' }
   });
 };
+
+
+const formattedTimestamp = (ts) => {
+  const date = new Date(ts);
+  return date.toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  }) + ' · ' + date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 </script>
 
 <style scoped>
@@ -188,10 +217,18 @@ const openUploadDialog = (colored, thresholded, name, values) => {
   color: rgba(255, 255, 255, 0.5);
 }
 
+.light-mode .prediction.small {
+  color: rgba(0, 0, 0, 0.5);
+}
+
 .adjustment {
   font-size: 20px;
   margin: 3px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.light-mode .adjustment {
+  color: rgba(0, 0, 0, 0.7);
 }
 
 .red {
@@ -218,14 +255,20 @@ const openUploadDialog = (colored, thresholded, name, values) => {
   background-color: rgba(255, 255, 255, 0.05);
 }
 
+.light-mode .econtainer {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
 .redbg {
   background-color: rgba(255, 0, 0, 0.1);
 }
-.bglight {
+
+.top-border-divider {
+  border-top: 2px solid rgba(255,255,255,0.6);
 }
 
-.outdated {
-
+.light-mode .top-border-divider {
+  border-top: 2px solid rgba(0,0,0,0.6);
 }
 
 </style>

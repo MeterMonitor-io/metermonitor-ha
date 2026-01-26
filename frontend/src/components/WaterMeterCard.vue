@@ -1,7 +1,7 @@
 
 <template>
   <n-card :title="meter_name" size="small" style="max-width: 300px;">
-    <n-flex justify="space-around" size="small" v-if="last_digits" :size="[0,0]">
+    <n-flex justify="space-around" size="small" v-if="last_digits" :size="[0,0]" class="theme-revert">
       <img :style="`width:calc(150px / ${last_digits.length});`" class="digit th" v-for="[i,base64] in last_digits.entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" alt="D"/>
     </n-flex>
     <n-flex justify="space-evenly" size="large" v-if="last_result && last_digits">

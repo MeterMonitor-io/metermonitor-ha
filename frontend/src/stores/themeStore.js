@@ -52,6 +52,8 @@ export const useThemeStore = defineStore('theme', () => {
   watch(isDark, (dark) => {
     document.body.style.backgroundColor = dark ? '#111111' : '#f5f5f5';
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    document.body.classList.toggle('dark-mode', dark);
+    document.body.classList.toggle('light-mode', !dark);
   }, { immediate: true });
 
   // Initialize on store creation

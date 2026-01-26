@@ -1,6 +1,6 @@
 <template>
   <n-flex>
-    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px"/>
+    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px" class="theme-revert"/>
     <n-button :loading="loading" @click="getData" round size="large">Refresh</n-button>
   </n-flex>
 
