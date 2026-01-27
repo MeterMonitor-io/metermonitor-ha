@@ -16,11 +16,15 @@ import zlib
 import re
 from typing import List, Optional
 
+import urllib.request
+import urllib.error
+import socket
+import time
+
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, FileResponse, StreamingResponse
 
 from lib.functions import reevaluate_latest_picture, add_history_entry, reevaluate_digits
-from lib.meter_processing.meter_processing import MeterPredictor
 from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
 from lib.threshold_optimizer import search_thresholds_for_meter
@@ -125,10 +129,635 @@ def prepare_setup_app(config, lifespan):
     class ThresholdSearchRequest(BaseModel):
         steps: int = 10
 
+    # --- Camera source models (HA entity polling) ---
+    class CameraSourceBase(BaseModel):
+        name: str
+        camera_entity_id: str
+        enabled: bool = True
+        poll_interval_s: int = 10
+
+    class CameraSourceCreate(CameraSourceBase):
+        pass
+
+    class CameraSourceUpdate(BaseModel):
+        camera_entity_id: Optional[str] = None
+        enabled: Optional[bool] = None
+        poll_interval_s: Optional[int] = None
+
+    # --- Generic source models (mqtt / ha_camera / http) ---
+    class SourceBase(BaseModel):
+        name: str
+        source_type: str
+        enabled: bool = True
+        poll_interval_s: Optional[int] = None
+        config: Optional[dict] = None
+
+    class SourceCreate(SourceBase):
+        pass
+
+    class SourceUpdate(BaseModel):
+        enabled: Optional[bool] = None
+        poll_interval_s: Optional[int] = None
+        config: Optional[dict] = None
+
     # Helper to sanitize meter name for filenames
     def _sanitize_name(name: str) -> str:
         # allow alnum, dash and underscore; replace others with _
         return re.sub(r"[^A-Za-z0-9_-]", "_", name)
+
+    def _ensure_meter_exists(db, meter_name: str):
+        cur = db.cursor()
+        cur.execute("SELECT name FROM watermeters WHERE name = ?", (meter_name,))
+        if cur.fetchone() is None:
+            cur.execute(
+                "INSERT INTO watermeters (name, picture_number, wifi_rssi, picture_format, picture_timestamp, picture_width, picture_height, picture_length, picture_data, setup) "
+                "VALUES (?, 0, 0, '', '', 0, 0, 0, '', 0)",
+                (meter_name,),
+            )
+
+    def _normalize_source_type(source_type: str) -> str:
+        st = (source_type or "").strip().lower()
+        # allow some aliases
+        if st in {"ha", "homeassistant", "ha_camera", "camera"}:
+            return "ha_camera"
+        if st in {"http", "http_endpoint", "webhook"}:
+            return "http"
+        if st in {"mqtt"}:
+            return "mqtt"
+        return st
+
+    # --- Sources CRUD ---
+    @app.get("/api/sources", dependencies=[Depends(authenticate)])
+    def list_sources():
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute(
+            "SELECT id, name, source_type, enabled, poll_interval_s, config_json, last_success_ts, last_error, created_ts, updated_ts "
+            "FROM sources ORDER BY id DESC"
+        )
+        out = []
+        for row in cur.fetchall():
+            d = dict(row)
+            try:
+                d["config"] = json.loads(d.pop("config_json")) if d.get("config_json") else None
+            except Exception:
+                d["config"] = None
+                d.pop("config_json", None)
+            out.append(d)
+        return {"sources": out}
+
+    @app.post("/api/sources", dependencies=[Depends(authenticate)])
+    def create_source(payload: SourceCreate):
+        st = _normalize_source_type(payload.source_type)
+        if st not in {"mqtt", "ha_camera", "http"}:
+            raise HTTPException(status_code=400, detail="Invalid source_type. Allowed: mqtt, ha_camera, http")
+
+        if payload.poll_interval_s is not None and payload.poll_interval_s < 1:
+            raise HTTPException(status_code=400, detail="poll_interval_s must be >= 1")
+
+        if st in {"ha_camera"}:
+            if not payload.config or not payload.config.get("camera_entity_id"):
+                raise HTTPException(status_code=400, detail="Missing config.camera_entity_id")
+            if payload.poll_interval_s is None:
+                raise HTTPException(status_code=400, detail="poll_interval_s is required for ha_camera")
+            # flash_entity_id is optional (used for ESPHome LED)
+            if payload.config.get("flash_entity_id") is not None and not isinstance(payload.config.get("flash_entity_id"), str):
+                raise HTTPException(status_code=400, detail="config.flash_entity_id must be a string")
+            if payload.config.get("flash_delay_ms") is not None:
+                try:
+                    dms = int(payload.config.get("flash_delay_ms"))
+                except Exception:
+                    raise HTTPException(status_code=400, detail="config.flash_delay_ms must be an integer")
+                if dms < 0 or dms > 10000:
+                    raise HTTPException(status_code=400, detail="config.flash_delay_ms must be between 0 and 10000")
+
+        if st in {"http"}:
+            # reserve for webhook/pull style; poll_interval optional
+            pass
+
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        _ensure_meter_exists(db, payload.name)
+        cfg_json = json.dumps(payload.config) if payload.config is not None else None
+
+        cur = db.cursor()
+        cur.execute(
+            "INSERT INTO sources (name, source_type, enabled, poll_interval_s, config_json, updated_ts) "
+            "VALUES (?, ?, ?, ?, ?, datetime('now'))",
+            (payload.name, st, 1 if payload.enabled else 0, payload.poll_interval_s, cfg_json),
+        )
+        db.commit()
+        return {"message": "Source created"}
+
+    @app.put("/api/sources/{source_id}", dependencies=[Depends(authenticate)])
+    def update_source(source_id: int, payload: SourceUpdate):
+        if payload.poll_interval_s is not None and payload.poll_interval_s < 1:
+            raise HTTPException(status_code=400, detail="poll_interval_s must be >= 1")
+
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute("SELECT * FROM sources WHERE id = ?", (source_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Source not found")
+
+        enabled = (1 if payload.enabled else 0) if payload.enabled is not None else row["enabled"]
+        poll_interval_s = payload.poll_interval_s if payload.poll_interval_s is not None else row["poll_interval_s"]
+        if payload.config is None:
+            cfg_json = row["config_json"]
+        else:
+            cfg_json = json.dumps(payload.config)
+
+        cur.execute(
+            "UPDATE sources SET enabled = ?, poll_interval_s = ?, config_json = ?, updated_ts = datetime('now') WHERE id = ?",
+            (enabled, poll_interval_s, cfg_json, source_id),
+        )
+        db.commit()
+        return {"message": "Source updated"}
+
+    @app.delete("/api/sources/{source_id}", dependencies=[Depends(authenticate)])
+    def delete_source(source_id: int):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute("DELETE FROM sources WHERE id = ?", (source_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Source not found")
+        db.commit()
+        return {"message": "Source deleted", "id": source_id}
+
+    # --- Camera sources CRUD (compat wrapper around sources table) ---
+    @app.get("/api/camera-sources", dependencies=[Depends(authenticate)])
+    def list_camera_sources():
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute(
+            "SELECT id, name, enabled, poll_interval_s, config_json, last_success_ts, last_error, created_ts, updated_ts "
+            "FROM sources WHERE source_type = 'ha_camera' ORDER BY id DESC"
+        )
+        out = []
+        for row in cur.fetchall():
+            d = dict(row)
+            cfg = None
+            try:
+                cfg = json.loads(d.get("config_json")) if d.get("config_json") else None
+            except Exception:
+                cfg = None
+            d.pop("config_json", None)
+            d["camera_entity_id"] = (cfg or {}).get("camera_entity_id")
+            d["flash_entity_id"] = (cfg or {}).get("flash_entity_id")
+            out.append(d)
+        return {"camera_sources": out}
+
+    @app.post("/api/camera-sources", dependencies=[Depends(authenticate)])
+    def create_camera_source(payload: CameraSourceCreate):
+        # forward into generic sources
+        s = SourceCreate(
+            name=payload.name,
+            source_type="ha_camera",
+            enabled=payload.enabled,
+            poll_interval_s=payload.poll_interval_s,
+            config={"camera_entity_id": payload.camera_entity_id},
+        )
+        return create_source(s)
+
+    @app.put("/api/camera-sources/{source_id}", dependencies=[Depends(authenticate)])
+    def update_camera_source(source_id: int, payload: CameraSourceUpdate):
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute("SELECT * FROM sources WHERE id = ? AND source_type = 'ha_camera'", (source_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Camera source not found")
+
+        cfg = None
+        try:
+            cfg = json.loads(row["config_json"]) if row["config_json"] else {}
+        except Exception:
+            cfg = {}
+
+        if payload.camera_entity_id is not None:
+            cfg["camera_entity_id"] = payload.camera_entity_id
+
+        su = SourceUpdate(
+            enabled=payload.enabled,
+            poll_interval_s=payload.poll_interval_s,
+            config=cfg,
+        )
+        return update_source(source_id, su)
+
+    @app.delete("/api/camera-sources/{source_id}", dependencies=[Depends(authenticate)])
+    def delete_camera_source(source_id: int):
+        # ensure type matches for nicer errors
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute("SELECT 1 FROM sources WHERE id = ? AND source_type = 'ha_camera'", (source_id,))
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail="Camera source not found")
+        return delete_source(source_id)
+
+    # --- Home Assistant REST helper (Supervisor token preferred, fallback manual token) ---
+    def _get_ha_config() -> dict:
+        return config.get('homeassistant') or {}
+
+    def _get_ha_base_url() -> Optional[str]:
+        ha_cfg = _get_ha_config()
+        url = ha_cfg.get('url')
+        return url.rstrip('/') if isinstance(url, str) and url.strip() else None
+
+    def _get_ha_token() -> Optional[str]:
+        ha_cfg = _get_ha_config()
+        use_supervisor = bool(ha_cfg.get('use_supervisor_token', True))
+        if use_supervisor:
+            sup = os.environ.get('SUPERVISOR_TOKEN')
+            if sup:
+                # In supervised installs we can often proxy via supervisor; for now we treat it as a bearer token
+                return sup
+        token = ha_cfg.get('token')
+        return token if isinstance(token, str) and token.strip() else None
+
+    def _ha_request_json_with_method(path: str, method: str = 'GET', body: Optional[dict] = None) -> dict:
+        base_url = _get_ha_base_url()
+        token = _get_ha_token()
+        if not base_url:
+            raise HTTPException(status_code=400, detail="Home Assistant URL not configured")
+        if not token:
+            raise HTTPException(status_code=400, detail="Home Assistant token not configured")
+
+        ha_cfg = _get_ha_config()
+        timeout_s = int(ha_cfg.get('request_timeout_s', 10) or 10)
+        url = f"{base_url}{path}"
+        data = json.dumps(body).encode('utf-8') if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method)
+        req.add_header('Authorization', f'Bearer {token}')
+        if body is not None:
+            req.add_header('Content-Type', 'application/json')
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                raw = resp.read().decode('utf-8')
+                return json.loads(raw) if raw else {}
+        except urllib.error.HTTPError as e:
+            detail = f"HA API error {e.code} on {path}"
+            raise HTTPException(status_code=502, detail=detail)
+        except (urllib.error.URLError, socket.timeout) as e:
+            raise HTTPException(status_code=502, detail=f"HA API unreachable: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"HA API unexpected error: {e}")
+
+    def _suggest_flash_entity(camera_entity_id: str, states: list) -> Optional[str]:
+        # Based on esphome_esp32cam_example.yaml:
+        # camera friendly_name: "Watermeter Camera"
+        # light friendly_name:  "Watermeter LED"
+        cam_state = None
+        for st in states:
+            if st.get('entity_id') == camera_entity_id:
+                cam_state = st
+                break
+        if not cam_state:
+            return None
+        cam_fn = ((cam_state.get('attributes') or {}).get('friendly_name'))
+        if not isinstance(cam_fn, str) or not cam_fn.strip():
+            return None
+
+        candidates = []
+        if cam_fn.endswith(' Camera'):
+            candidates.append(cam_fn[:-7] + ' LED')
+        candidates.append(cam_fn.replace(' Camera', ' LED'))
+
+        lights_by_fn = {}
+        for st in states:
+            ent_id = st.get('entity_id')
+            if isinstance(ent_id, str) and ent_id.startswith('light.'):
+                fn = ((st.get('attributes') or {}).get('friendly_name'))
+                if isinstance(fn, str) and fn.strip():
+                    lights_by_fn[fn] = ent_id
+
+        for cand in candidates:
+            if cand in lights_by_fn:
+                return lights_by_fn[cand]
+        return None
+
+    def _ha_request_json(path: str) -> dict:
+        return _ha_request_json_with_method(path, method='GET', body=None)
+
+    @app.get('/api/ha/status', dependencies=[Depends(authenticate)])
+    def ha_status():
+        base_url = _get_ha_base_url()
+        ha_cfg = _get_ha_config()
+        sup_token_present = bool(os.environ.get('SUPERVISOR_TOKEN'))
+        use_sup = bool(ha_cfg.get('use_supervisor_token', True))
+        configured_token_present = bool((ha_cfg.get('token') or '').strip())
+
+        status = {
+            'configured': bool(base_url) and (configured_token_present or (use_sup and sup_token_present)),
+            'base_url': base_url,
+            'use_supervisor_token': use_sup,
+            'supervisor_token_present': sup_token_present,
+            'manual_token_present': configured_token_present,
+            'ok': False,
+        }
+
+        if not status['configured']:
+            return status
+
+        # simple call
+        _ = _ha_request_json('/api/config')
+        status['ok'] = True
+        return status
+
+    @app.get('/api/ha/cameras', dependencies=[Depends(authenticate)])
+    def ha_cameras():
+        states = _ha_request_json('/api/states')
+        cams = []
+        if isinstance(states, list):
+            for st in states:
+                try:
+                    ent_id = st.get('entity_id')
+                    if isinstance(ent_id, str) and ent_id.startswith('camera.'):
+                        attrs = st.get('attributes') or {}
+                        cams.append({
+                            'entity_id': ent_id,
+                            'name': attrs.get('friendly_name') or ent_id,
+                            'suggested_flash_entity_id': _suggest_flash_entity(ent_id, states)
+                        })
+                except Exception:
+                    continue
+        cams.sort(key=lambda x: x['entity_id'])
+        return {'cameras': cams}
+
+    class HaServiceCall(BaseModel):
+        domain: str
+        service: str
+        entity_id: str
+
+    @app.post('/api/ha/service', dependencies=[Depends(authenticate)])
+    def ha_call_service(payload: HaServiceCall):
+        # Minimal helper for flash control (light.turn_on/off)
+        if not payload.domain or not payload.service or not payload.entity_id:
+            raise HTTPException(status_code=400, detail='domain, service, entity_id are required')
+        res = _ha_request_json_with_method(
+            f"/api/services/{payload.domain}/{payload.service}",
+            method='POST',
+            body={'entity_id': payload.entity_id},
+        )
+        return {'result': res}
+
+    def _ha_get_bytes(path: str) -> bytes:
+        """Fetch raw bytes from HA (used for camera proxy images)."""
+        base_url = _get_ha_base_url()
+        token = _get_ha_token()
+        if not base_url:
+            raise HTTPException(status_code=400, detail="Home Assistant URL not configured")
+        if not token:
+            raise HTTPException(status_code=400, detail="Home Assistant token not configured")
+
+        ha_cfg = _get_ha_config()
+        timeout_s = int(ha_cfg.get('request_timeout_s', 10) or 10)
+        url = f"{base_url}{path}"
+        req = urllib.request.Request(url)
+        req.add_header('Authorization', f'Bearer {token}')
+
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            detail = f"HA API error {e.code} on {path}"
+            raise HTTPException(status_code=502, detail=detail)
+        except (urllib.error.URLError, socket.timeout) as e:
+            raise HTTPException(status_code=502, detail=f"HA API unreachable: {e}")
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"HA API unexpected error: {e}")
+
+    def _extract_ha_camera_config(source_row: sqlite3.Row) -> dict:
+        try:
+            cfg = json.loads(source_row["config_json"]) if source_row["config_json"] else {}
+            return cfg if isinstance(cfg, dict) else {}
+        except Exception:
+            return {}
+
+    @app.post('/api/sources/{source_id}/capture-now', dependencies=[Depends(authenticate)])
+    def capture_now(source_id: int):
+        """Trigger a one-off capture for a source.
+
+        Currently supports: ha_camera
+        - Optional flash: config.flash_entity_id (light.*) is turned on briefly before snapshot and turned off afterwards.
+        """
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute("SELECT * FROM sources WHERE id = ?", (source_id,))
+        src = cur.fetchone()
+        if src is None:
+            raise HTTPException(status_code=404, detail='Source not found')
+
+        if src["source_type"] != 'ha_camera':
+            raise HTTPException(status_code=400, detail='capture-now currently supported only for ha_camera sources')
+
+        cfg = _extract_ha_camera_config(src)
+        camera_entity_id = cfg.get('camera_entity_id')
+        flash_entity_id = cfg.get('flash_entity_id')
+        flash_delay_ms = cfg.get('flash_delay_ms', None)
+        try:
+            flash_delay_ms = int(flash_delay_ms) if flash_delay_ms is not None else 1200
+        except Exception:
+            flash_delay_ms = 1200
+        if not camera_entity_id:
+            raise HTTPException(status_code=400, detail='Missing config.camera_entity_id')
+
+        # optionally enable flash
+        flash_enabled = False
+        try:
+            if isinstance(flash_entity_id, str) and flash_entity_id.strip():
+                _ha_request_json_with_method(
+                    f"/api/services/light/turn_on",
+                    method='POST',
+                    body={'entity_id': flash_entity_id},
+                )
+                flash_enabled = True
+                # ESP32Cam often runs at 0.1-1 FPS; give it time to update exposure/frame
+                time.sleep(max(0.0, flash_delay_ms / 1000.0))
+
+            # snapshot via camera proxy (returns jpeg/png bytes)
+            raw = _ha_get_bytes(f"/api/camera_proxy/{camera_entity_id}")
+            b64 = base64.b64encode(raw).decode('utf-8')
+
+            # store in watermeters
+            meter_name = src["name"]
+            _ensure_meter_exists(db, meter_name)
+            # increment picture_number
+            cur.execute("SELECT picture_number FROM watermeters WHERE name = ?", (meter_name,))
+            row = cur.fetchone()
+            picture_number = int(row[0] or 0) + 1 if row else 1
+            ts = time.strftime('%Y-%m-%dT%H:%M:%S')
+            # We don't know exact dims without decoding; keep minimal metadata (format inferred best-effort)
+            fmt = 'jpeg'
+            if raw[:8] == b'\x89PNG\r\n\x1a\n':
+                fmt = 'png'
+
+            cur.execute(
+                "UPDATE watermeters SET picture_number = ?, picture_format = ?, picture_timestamp = ?, picture_length = ?, picture_data = ?, picture_data_bbox = NULL WHERE name = ?",
+                (picture_number, fmt, ts, len(raw), b64, meter_name),
+            )
+            db.commit()
+
+            # reevaluate and store bbox
+            r = reevaluate_latest_picture(config['dbfile'], meter_name, meter_preditor, config, publish=False, skip_setup_overwriting=False)
+            if r is None:
+                cur.execute("UPDATE sources SET last_error = ?, last_success_ts = NULL, updated_ts = datetime('now') WHERE id = ?",
+                            ("Reevaluation failed", source_id))
+                db.commit()
+                return {"result": False, "message": "Capture stored, but reevaluation failed"}
+
+            target_brightness, confidence, bbox_base64 = r
+            cur.execute("UPDATE watermeters SET picture_data_bbox = ? WHERE name = ?", (bbox_base64, meter_name))
+            cur.execute("UPDATE sources SET last_error = NULL, last_success_ts = datetime('now'), updated_ts = datetime('now') WHERE id = ?",
+                        (source_id,))
+            db.commit()
+
+            return {
+                "result": True,
+                "name": meter_name,
+                "picture_number": picture_number,
+                "flash_used": bool(flash_enabled),
+                "target_brightness": target_brightness,
+                "confidence": confidence,
+            }
+        finally:
+            if flash_enabled:
+                try:
+                    _ha_request_json_with_method(
+                        f"/api/services/light/turn_off",
+                        method='POST',
+                        body={'entity_id': flash_entity_id},
+                    )
+                except Exception:
+                    pass
+
+    # --- Watermeter settings (CRUD) ---
+    @app.get("/api/settings", dependencies=[Depends(authenticate)])
+    def list_settings():
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute(
+            "SELECT name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, rotated_180, shrink_last_3, extended_last_digit, max_flow_rate, conf_threshold "
+            "FROM settings ORDER BY name"
+        )
+        out = [dict(row) for row in cur.fetchall()]
+        return {"settings": out}
+
+    @app.post("/api/settings", dependencies=[Depends(authenticate)])
+    def create_settings(payload: SettingsRequest):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute(
+            "INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, rotated_180, shrink_last_3, extended_last_digit, max_flow_rate, conf_threshold) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (payload.name, payload.threshold_low, payload.threshold_high, payload.threshold_last_low, payload.threshold_last_high, payload.islanding_padding, payload.segments, 1 if payload.rotated_180 else 0, 1 if payload.shrink_last_3 else 0, 1 if payload.extended_last_digit else 0, payload.max_flow_rate, payload.conf_threshold),
+        )
+        db.commit()
+        return {"message": "Settings created"}
+
+    @app.put("/api/settings/{name}", dependencies=[Depends(authenticate)])
+    def update_settings(name: str, payload: SettingsUpdateRequest):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute("SELECT * FROM settings WHERE name = ?", (name,))
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Settings not found")
+
+        cur.execute(
+            "UPDATE settings SET threshold_low = ?, threshold_high = ?, threshold_last_low = ?, threshold_last_high = ?, islanding_padding = ?, segments = ?, rotated_180 = ?, shrink_last_3 = ?, extended_last_digit = ?, max_flow_rate = ?, conf_threshold = ? WHERE name = ?",
+            (payload.threshold_low, payload.threshold_high, payload.threshold_last_low, payload.threshold_last_high, payload.islanding_padding, payload.segments, 1 if payload.rotated_180 else 0, 1 if payload.shrink_last_3 else 0, 1 if payload.extended_last_digit else 0, payload.max_flow_rate, payload.conf_threshold, name),
+        )
+        db.commit()
+        return {"message": "Settings updated"}
+
+    @app.delete("/api/settings/{name}", dependencies=[Depends(authenticate)])
+    def delete_settings(name: str):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute("DELETE FROM settings WHERE name = ?", (name,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Settings not found")
+        db.commit()
+        return {"message": "Settings deleted", "name": name}
+
+    # --- Watermeter history (CRUD) ---
+    @app.get("/api/history", dependencies=[Depends(authenticate)])
+    def list_history():
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute(
+            "SELECT name, value, timestamp FROM history ORDER BY name, timestamp"
+        )
+        out = [dict(row) for row in cur.fetchall()]
+        return {"history": out}
+
+    @app.post("/api/history", dependencies=[Depends(authenticate)])
+    def create_history_entry(payload: SetupData):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute(
+            "INSERT INTO history (name, value, timestamp) VALUES (?, ?, ?)",
+            (payload.value, payload.timestamp),
+        )
+        db.commit()
+        return {"message": "History entry created"}
+
+    @app.delete("/api/history/{name}", dependencies=[Depends(authenticate)])
+    def delete_history(name: str):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute("DELETE FROM history WHERE name = ?", (name,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="History not found")
+        db.commit()
+        return {"message": "History deleted", "name": name}
+
+    # --- Watermeter evaluations (CRUD) ---
+    @app.get("/api/evaluations", dependencies=[Depends(authenticate)])
+    def list_evaluations():
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute(
+            "SELECT name, eval, timestamp FROM evaluations ORDER BY name, timestamp"
+        )
+        out = [dict(row) for row in cur.fetchall()]
+        return {"evaluations": out}
+
+    @app.post("/api/evaluations", dependencies=[Depends(authenticate)])
+    def create_evaluation(payload: EvalRequest):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute(
+            "INSERT INTO evaluations (name, eval, timestamp) VALUES (?, ?, ?)",
+            (payload.eval, int(time.time())),
+        )
+        db.commit()
+        return {"message": "Evaluation created"}
+
+    @app.delete("/api/evaluations/{name}", dependencies=[Depends(authenticate)])
+    def delete_evaluation(name: str):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute("DELETE FROM evaluations WHERE name = ?", (name,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+        db.commit()
+        return {"message": "Evaluation deleted", "name": name}
+
+    @app.get("/api/alerts", dependencies=[Depends(authenticate)])
+    def get_current_alerts():
+        return get_alerts()
 
     @app.get("/api/discovery", dependencies=[Depends(authenticate)])
     def get_discovery():
@@ -141,7 +770,8 @@ def prepare_setup_app(config, lifespan):
         # Validate equal lengths
         n = len(payload.labels)
         if not (len(payload.colored) == n == len(payload.thresholded)):
-            raise HTTPException(status_code=400, detail="'labels', 'colored' and 'thresholded' arrays must have equal length")
+            raise HTTPException(status_code=400,
+                                detail="'labels', 'colored' and 'thresholded' arrays must have equal length")
 
         # allowed labels are 0-9 and 'r'
         allowed = set([str(i) for i in range(10)] + ["r"])
@@ -252,32 +882,6 @@ def prepare_setup_app(config, lifespan):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to delete dataset: {str(e)}")
 
-    @app.post("/api/evaluate/single", dependencies=[Depends(authenticate)])
-    def evaluate(
-            base64str: str = Body(...),  # Changed from Query to Body for POST requests
-            threshold_low: float = Body(0, ge=0, le=255),
-            threshold_high: float = Body(155, ge=0, le=255),
-            islanding_padding: int = Body(20, ge=0),
-            invert: bool = Body(False)
-    ):
-            # Decode the base64 image
-            image_data = base64.b64decode(base64str)
-
-            # Get PIL image from base64
-            image = Image.open(BytesIO(image_data))
-            # to numpy array
-            image = np.array(image)
-
-            # Apply threshold with the passed values
-            base64r, digits = meter_preditor.apply_threshold(image, threshold_low, threshold_high, islanding_padding, invert=invert)
-
-            # Return the result
-            return {"base64": base64r}
-
-    @app.get("/api/alerts", dependencies=[Depends(authenticate)])
-    def get_current_alerts():
-        return get_alerts()
-
     @app.get("/api/config", dependencies=[Depends(authenticate)])
     def get_config():
         tconfig = config.copy()
@@ -288,15 +892,18 @@ def prepare_setup_app(config, lifespan):
     def get_watermeters():
         cursor = db_connection().cursor()
         cursor.execute("""
-            SELECT 
-                w.name, 
-                w.picture_timestamp, 
-                w.wifi_rssi,
-                (SELECT value FROM history h WHERE h.name = w.name ORDER BY timestamp DESC LIMIT 1),
-                (SELECT th_digits_inverted FROM evaluations e WHERE e.name = w.name ORDER BY id DESC LIMIT 1)
-            FROM watermeters w 
-            WHERE w.setup = 1
-        """)
+                       SELECT w.name,
+                              w.picture_timestamp,
+                              w.wifi_rssi,
+                              (SELECT value FROM history h WHERE h.name = w.name ORDER BY timestamp DESC LIMIT 1),
+                              (SELECT th_digits_inverted
+                               FROM evaluations e
+                               WHERE e.name = w.name
+                               ORDER BY id DESC
+                               LIMIT 1)
+                       FROM watermeters w
+                       WHERE w.setup = 1
+                       """)
 
         result = []
         for row in cursor.fetchall():
@@ -311,7 +918,8 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute("UPDATE watermeters SET setup = 1 WHERE name = ?", (name,))
         db.commit()
-        target_brightness, confidence, _ = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False)
+        target_brightness, confidence, _ = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config,
+                                                                     skip_setup_overwriting=False)
         add_history_entry(config['dbfile'], name, data.value, 1, target_brightness, data.timestamp, config, manual=True)
 
         # clear evaluations
@@ -385,8 +993,9 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute(
             """
-            INSERT INTO watermeters (name, picture_number, wifi_rssi, picture_format, 
-            picture_timestamp, picture_width, picture_height, picture_length, picture_data, setup) 
+            INSERT INTO watermeters (name, picture_number, wifi_rssi, picture_format,
+                                     picture_timestamp, picture_width, picture_height, picture_length, picture_data,
+                                     setup)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
             """,
             (
@@ -408,7 +1017,9 @@ def prepare_setup_app(config, lifespan):
     @app.get("/api/watermeters/{name}/settings", dependencies=[Depends(authenticate)])
     def get_settings(name: str):
         cursor = db_connection().cursor()
-        cursor.execute("SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold FROM settings WHERE name = ?", (name,))
+        cursor.execute(
+            "SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold FROM settings WHERE name = ?",
+            (name,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Thresholds not found")
@@ -432,14 +1043,26 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute(
             """
-            INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold) 
-            VALUES (?, ?, ?, ?,?,?, ?, ? , ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET 
-            threshold_low=excluded.threshold_low, threshold_high=excluded.threshold_high, threshold_last_low=excluded.threshold_last_low, threshold_last_high=excluded.threshold_last_high,
-            islanding_padding=excluded.islanding_padding,
-            segments=excluded.segments, shrink_last_3=excluded.shrink_last_3, extended_last_digit=excluded.extended_last_digit, max_flow_rate=excluded.max_flow_rate, rotated_180=excluded.rotated_180, conf_threshold=excluded.conf_threshold
+            INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high,
+                                  islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate,
+                                  rotated_180, conf_threshold)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET threshold_low=excluded.threshold_low,
+                                            threshold_high=excluded.threshold_high,
+                                            threshold_last_low=excluded.threshold_last_low,
+                                            threshold_last_high=excluded.threshold_last_high,
+                                            islanding_padding=excluded.islanding_padding,
+                                            segments=excluded.segments,
+                                            shrink_last_3=excluded.shrink_last_3,
+                                            extended_last_digit=excluded.extended_last_digit,
+                                            max_flow_rate=excluded.max_flow_rate,
+                                            rotated_180=excluded.rotated_180,
+                                            conf_threshold=excluded.conf_threshold
             """,
-            (settings.name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low, settings.threshold_last_high, settings.islanding_padding,
-             settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate, settings.rotated_180, settings.conf_threshold)
+            (settings.name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low,
+             settings.threshold_last_high, settings.islanding_padding,
+             settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate,
+             settings.rotated_180, settings.conf_threshold)
         )
         db.commit()
         return {"message": "Thresholds set", "name": settings.name}
@@ -450,14 +1073,26 @@ def prepare_setup_app(config, lifespan):
         cursor = db.cursor()
         cursor.execute(
             """
-            INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold) 
-            VALUES (?, ?, ?, ?,?,?, ?, ? , ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET 
-            threshold_low=excluded.threshold_low, threshold_high=excluded.threshold_high, threshold_last_low=excluded.threshold_last_low, threshold_last_high=excluded.threshold_last_high,
-            islanding_padding=excluded.islanding_padding,
-            segments=excluded.segments, shrink_last_3=excluded.shrink_last_3, extended_last_digit=excluded.extended_last_digit, max_flow_rate=excluded.max_flow_rate, rotated_180=excluded.rotated_180, conf_threshold=excluded.conf_threshold
+            INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high,
+                                  islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate,
+                                  rotated_180, conf_threshold)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET threshold_low=excluded.threshold_low,
+                                            threshold_high=excluded.threshold_high,
+                                            threshold_last_low=excluded.threshold_last_low,
+                                            threshold_last_high=excluded.threshold_last_high,
+                                            islanding_padding=excluded.islanding_padding,
+                                            segments=excluded.segments,
+                                            shrink_last_3=excluded.shrink_last_3,
+                                            extended_last_digit=excluded.extended_last_digit,
+                                            max_flow_rate=excluded.max_flow_rate,
+                                            rotated_180=excluded.rotated_180,
+                                            conf_threshold=excluded.conf_threshold
             """,
-            (name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low, settings.threshold_last_high, settings.islanding_padding,
-             settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate, settings.rotated_180, settings.conf_threshold)
+            (name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low,
+             settings.threshold_last_high, settings.islanding_padding,
+             settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate,
+             settings.rotated_180, settings.conf_threshold)
         )
         db.commit()
         return {"message": "Settings updated", "name": name}
@@ -547,10 +1182,19 @@ def prepare_setup_app(config, lifespan):
 
         # Build query with optional pagination
         query = """
-            SELECT colored_digits, th_digits, predictions, timestamp, result, total_confidence, outdated, id, denied_digits, th_digits_inverted
-            FROM evaluations
-            WHERE name = ?
-        """
+                SELECT colored_digits, \
+                       th_digits, \
+                       predictions, \
+                       timestamp, \
+                       result, \
+                       total_confidence, \
+                       outdated, \
+                       id, \
+                       denied_digits, \
+                       th_digits_inverted
+                FROM evaluations
+                WHERE name = ? \
+                """
         params = [name]
 
         if from_id is not None:

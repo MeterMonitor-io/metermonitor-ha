@@ -7,5 +7,11 @@
       "host": "0.0.0.0",
       "port": 8070
     },
-    "dbfile": "/data/watermeters.sqlite"
+    "dbfile": "/data/watermeters.sqlite",
+    "homeassistant": {
+      "use_supervisor_token": true,
+      "url": null,
+      "token": null,
+      "request_timeout_s": 10
+    }
   }

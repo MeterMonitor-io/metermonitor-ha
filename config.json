@@ -24,7 +24,14 @@
     },
     "allow_negative_correction": true,
     "publish_to": "homeassistant/sensor/watermeter_{device}/",
-    "dbfile": "/data/metermonitor.db"
+    "dbfile": "/data/metermonitor.db",
+
+    "homeassistant": {
+      "use_supervisor_token": true,
+      "url": null,
+      "token": null,
+      "request_timeout_s": 10
+    }
   },
   "schema": {
     "max_history": "int(1,)",
@@ -38,6 +45,13 @@
     },
     "allow_negative_correction": "bool",
     "publish_to": "str",
-    "dbfile": "str"
+    "dbfile": "str",
+
+    "homeassistant": {
+      "use_supervisor_token": "bool",
+      "url": "str?",
+      "token": "str?",
+      "request_timeout_s": "int(1,)"
+    }
   }
 }

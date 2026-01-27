@@ -261,3 +261,27 @@ def run_migrations(db_file):
                 cursor.execute("UPDATE evaluations SET th_digits_inverted = ? WHERE id = ?", (inverted_json, row_id))
             print("[MIGRATION] Added 'th_digits_inverted' column to 'evaluations' table and populated values")
 
+        # Create camera_sources table for HA camera entity polling if it doesn't exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='camera_sources'")
+        if cursor.fetchone() is None:
+            cursor.execute('''
+                CREATE TABLE camera_sources (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    camera_entity_id TEXT NOT NULL,
+                    enabled BOOLEAN DEFAULT 1,
+                    poll_interval_s INTEGER DEFAULT 10,
+                    last_success_ts TEXT DEFAULT NULL,
+                    last_error TEXT DEFAULT NULL,
+                    created_ts TEXT DEFAULT (datetime('now')),
+                    updated_ts TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY(name) REFERENCES watermeters(name) ON DELETE CASCADE
+                )
+            ''')
+            cursor.execute('''
+                CREATE UNIQUE INDEX idx_camera_sources_name_entity
+                ON camera_sources(name, camera_entity_id)
+            ''')
+            conn.commit()
+            print("[MIGRATION] Created 'camera_sources' table")
+
