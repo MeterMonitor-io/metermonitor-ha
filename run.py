@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from db.migrations import run_migrations
 from lib.http_server import prepare_setup_app
 from lib.mqtt_handler import MQTTHandler
-
+from lib.polling_handler import PollingHandler
 
 config = {}
 
@@ -43,60 +43,6 @@ print("[INIT] Loaded config:")
 # pretty print json
 print(json.dumps(config, indent=4))
 
-# create database and tables
-db_connection = sqlite3.connect(config['dbfile'])
-cursor = db_connection.cursor()
-cursor.execute('''
-            CREATE TABLE IF NOT EXISTS watermeters (
-                name TEXT PRIMARY KEY,
-                picture_number INTEGER,
-                wifi_rssi INTEGER,
-                picture_format TEXT,
-                picture_timestamp TEXT,
-                picture_width INTEGER,
-                picture_height INTEGER,
-                picture_length INTEGER,
-                picture_data TEXT,
-                setup BOOLEAN DEFAULT 0
-            )
-        ''')
-cursor.execute('''
-            CREATE TABLE IF NOT EXISTS settings (
-                name TEXT PRIMARY KEY,
-                threshold_low INTEGER,
-                threshold_high INTEGER,
-                threshold_last_low INTEGER,
-                threshold_last_high INTEGER,
-                islanding_padding INTEGER,
-                segments INTEGER,
-                rotated_180 BOOLEAN,
-                shrink_last_3 BOOLEAN,
-                extended_last_digit BOOLEAN,
-                max_flow_rate FLOAT,
-                FOREIGN KEY(name) REFERENCES watermeters(name)
-            )
-        ''')
-# Add evaluations table
-cursor.execute('''
-            CREATE TABLE IF NOT EXISTS evaluations (
-                name TEXT,
-                eval TEXT,
-                FOREIGN KEY(name) REFERENCES watermeters(name)
-            )
-        ''')
-cursor.execute('''
-            CREATE TABLE IF NOT EXISTS history (
-                name TEXT,
-                value INTEGER,
-                confidence FLOAT,
-                target_brightness FLOAT,
-                timestamp TEXT,
-                manual BOOLEAN,
-                FOREIGN KEY(name) REFERENCES watermeters(name)
-            )
-        ''')
-db_connection.commit()
-
 # Run migrations
 run_migrations(config['dbfile'])
 
@@ -104,6 +50,10 @@ MQTT_CONFIG = config['mqtt']
 
 # start application. if http is enabled, start the http server
 # if not, start only the mqtt handler
+
+# start polling service
+polling_handler = PollingHandler(config, db_file=config['dbfile'])
+polling_handler.start()
 
 if config['http']['enabled']:
     @asynccontextmanager

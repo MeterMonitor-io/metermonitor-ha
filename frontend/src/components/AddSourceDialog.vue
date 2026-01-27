@@ -1,5 +1,5 @@
 <template>
-  <n-modal v-model:show="show" preset="card" title="Add source" style="max-width: 860px;" :mask-closable="!saving && !testing">
+  <n-modal v-model:show="show" preset="card" title="Add source" style="max-width: 860px;" :mask-closable="!saving && !testing" :closable="!testing">
     <n-space vertical size="large">
       <n-alert type="info" v-if="selectedType === 'mqtt'">
         MQTT sources don’t need manual setup.
@@ -76,6 +76,8 @@
                   </n-text>
                 </n-space>
 
+                <n-progress v-if="testing && form.flash_delay_ms > 0" :percentage="progress" />
+
                 <div v-if="previewBbox" class="preview">
                   <img :src="previewBbox" alt="Preview" />
                 </div>
@@ -97,7 +99,7 @@
 
       <n-space justify="end">
         <n-button @click="close" :disabled="saving || testing">Cancel</n-button>
-        <n-button type="success" @click="create" :loading="saving" :disabled="!canCreate">
+        <n-button type="success" @click="create" :loading="saving" :disabled="!canCreate || testing">
           Create source
         </n-button>
       </n-space>
@@ -121,8 +123,8 @@ import {
   NButton,
   NAlert,
   NText,
+  NProgress,
 } from 'naive-ui';
-import router from '@/router';
 import { apiService } from '@/services/api';
 
 const props = defineProps({
@@ -159,6 +161,8 @@ const loadingCameras = ref(false);
 const cameras = ref([]);
 const previewBbox = ref(null);
 const testHint = ref('');
+const progress = ref(0);
+let progressInterval = null;
 
 const cameraOptions = computed(() =>
   cameras.value.map((c) => ({ label: c.name || c.entity_id, value: c.entity_id, raw: c }))
@@ -256,6 +260,16 @@ async function testCapture() {
   testing.value = true;
   testHint.value = '';
   previewBbox.value = null;
+  progress.value = 0;
+
+  if (form.value.flash_delay_ms > 0) {
+    const totalTime = form.value.flash_delay_ms;
+    const step = 100; // update every 100ms
+    const increment = (step / totalTime) * 100;
+    progressInterval = setInterval(() => {
+      progress.value = Math.min(progress.value + increment, 100);
+    }, step);
+  }
 
   try {
     const r = await apiService.postJson(`api/capture-now`, {
@@ -276,6 +290,11 @@ async function testCapture() {
     testHint.value = 'Test capture failed (see console).';
   } finally {
     testing.value = false;
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+    progress.value = 0;
   }
 }
 

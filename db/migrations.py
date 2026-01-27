@@ -7,6 +7,74 @@ def run_migrations(db_file):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
+        cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS watermeters
+                       (
+                           name              TEXT PRIMARY KEY,
+                           picture_number    INTEGER,
+                           wifi_rssi         INTEGER,
+                           picture_format    TEXT,
+                           picture_timestamp TEXT,
+                           picture_width     INTEGER,
+                           picture_height    INTEGER,
+                           picture_length    INTEGER,
+                           picture_data      TEXT,
+                           setup             BOOLEAN DEFAULT 0
+                       )
+                       ''')
+        cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS settings
+                       (
+                           name                TEXT PRIMARY KEY,
+                           threshold_low       INTEGER,
+                           threshold_high      INTEGER,
+                           threshold_last_low  INTEGER,
+                           threshold_last_high INTEGER,
+                           islanding_padding   INTEGER,
+                           segments            INTEGER,
+                           rotated_180         BOOLEAN,
+                           shrink_last_3       BOOLEAN,
+                           extended_last_digit BOOLEAN,
+                           max_flow_rate       FLOAT,
+                           FOREIGN KEY (name) REFERENCES watermeters (name)
+                       )
+                       ''')
+        # Add evaluations table
+        cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS evaluations
+                       (
+                           name TEXT,
+                           eval TEXT,
+                           FOREIGN KEY (name) REFERENCES watermeters (name)
+                       )
+                       ''')
+        cursor.execute('''
+                       CREATE TABLE IF NOT EXISTS history
+                       (
+                           name              TEXT,
+                           value             INTEGER,
+                           confidence        FLOAT,
+                           target_brightness FLOAT,
+                           timestamp         TEXT,
+                           manual            BOOLEAN,
+                           FOREIGN KEY (name) REFERENCES watermeters (name)
+                       )
+                       ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                enabled BOOLEAN DEFAULT 1,
+                poll_interval_s INTEGER,
+                config_json TEXT,
+                last_success_ts TEXT,
+                last_error TEXT,
+                created_ts TEXT DEFAULT (datetime('now')),
+                updated_ts TEXT DEFAULT (datetime('now'))
+            )
+        ''')
         # For <= 1.2.3: Add outdated bool to evaluations table if it doesn't exist yet
         cursor.execute("PRAGMA table_info(evaluations)")
         columns = [info[1] for info in cursor.fetchall()]
@@ -261,27 +329,4 @@ def run_migrations(db_file):
                 cursor.execute("UPDATE evaluations SET th_digits_inverted = ? WHERE id = ?", (inverted_json, row_id))
             print("[MIGRATION] Added 'th_digits_inverted' column to 'evaluations' table and populated values")
 
-        # Create camera_sources table for HA camera entity polling if it doesn't exist
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='camera_sources'")
-        if cursor.fetchone() is None:
-            cursor.execute('''
-                CREATE TABLE camera_sources (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    camera_entity_id TEXT NOT NULL,
-                    enabled BOOLEAN DEFAULT 1,
-                    poll_interval_s INTEGER DEFAULT 10,
-                    last_success_ts TEXT DEFAULT NULL,
-                    last_error TEXT DEFAULT NULL,
-                    created_ts TEXT DEFAULT (datetime('now')),
-                    updated_ts TEXT DEFAULT (datetime('now')),
-                    FOREIGN KEY(name) REFERENCES watermeters(name) ON DELETE CASCADE
-                )
-            ''')
-            cursor.execute('''
-                CREATE UNIQUE INDEX idx_camera_sources_name_entity
-                ON camera_sources(name, camera_entity_id)
-            ''')
-            conn.commit()
-            print("[MIGRATION] Created 'camera_sources' table")
 

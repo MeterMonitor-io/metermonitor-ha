@@ -29,6 +29,7 @@ from lib.ha_flash_suggestion import suggest_flash_entity
 from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
 from lib.threshold_optimizer import search_thresholds_for_meter
+from lib.capture_utils import capture_and_process_source
 
 
 # http server class
@@ -140,7 +141,7 @@ def prepare_setup_app(config, lifespan):
         name: str
         camera_entity_id: str
         enabled: bool = True
-        poll_interval_s: int = 10
+        poll_interval_s: int = 10 * 60  # default 10 minutes
 
     class CameraSourceCreate(CameraSourceBase):
         pass
@@ -180,6 +181,13 @@ def prepare_setup_app(config, lifespan):
                 "VALUES (?, 0, 0, '', '', 0, 0, 0, '', 0)",
                 (meter_name,),
             )
+
+            cur.execute('''
+                           INSERT OR IGNORE INTO settings
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           ''', (
+                               meter_name,0,100,0,100,20,7,False,False,False,1.0,None
+                           ))
 
     def _normalize_source_type(source_type: str) -> str:
         st = (source_type or "").strip().lower()
@@ -254,6 +262,16 @@ def prepare_setup_app(config, lifespan):
             (payload.name, st, 1 if payload.enabled else 0, payload.poll_interval_s, cfg_json),
         )
         db.commit()
+
+        # Trigger initial capture and processing
+        try:
+            cur.execute("SELECT * FROM sources WHERE name = ? AND source_type = ?", (payload.name, st))
+            source_row = cur.fetchone()
+            if source_row and st == 'ha_camera':
+                capture_and_process_source(config, config['dbfile'], source_row, meter_preditor)
+        except Exception as e:
+            print(f"[ERROR] Initial capture processing failed for source {payload.name}: {e}")
+
         return {"message": "Source created"}
 
     @app.put("/api/sources/{source_id}", dependencies=[Depends(authenticate)])
