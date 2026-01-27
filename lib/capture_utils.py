@@ -169,14 +169,23 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
         try:
             result = reevaluate_latest_picture(db_file, name, meter_predictor,
                                                config, publish=publish)
-            boundingboxed_image = result[2] if len(result) >= 3 else None
+            if result and len(result) >= 3:
+                boundingboxed_image = result[2]
+            else:
+                boundingboxed_image = None
+                if result is None:
+                    print(f"[CAPTURE] No bounding box generated for {name} (reevaluate returned None - meter likely not set up yet)")
+                else:
+                    print(f"[CAPTURE] No bounding box in result for {name}")
         except Exception as e:
             print(f"[CAPTURE] Error processing image for {name}: {e}")
+            import traceback
+            traceback.print_exc()
             boundingboxed_image = None
 
         if boundingboxed_image:
             cursor.execute('''
-                UPDATE watermeters 
+                UPDATE watermeters
                 SET picture_data_bbox = ?
                 WHERE name = ?
             ''', (
@@ -185,6 +194,8 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
             ))
             conn.commit()
             print(f"[CAPTURE] Saved boundingboxed image for {name}")
+        else:
+            print(f"[CAPTURE] Skipping bounding box save for {name} (no bbox available)")
 
     return timestamp
 

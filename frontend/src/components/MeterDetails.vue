@@ -6,14 +6,31 @@
       </template>
       <template #cover>
         <img
+            v-if="data.picture?.data_bbox"
           :src="'data:image/' + data.picture.format + ';base64,' + data.picture.data_bbox"
+          alt="Watermeter"
+        />
+        <img
+            v-else
+          :src="'data:image/' + data.picture?.format + ';base64,' + data.picture?.data"
           alt="Watermeter"
         />
       </template>
     </n-card>
+
+    <n-alert v-if="!data?.picture?.data_bbox" type="warning" title="No Bounding Box" style="margin-top: 16px;">
+      In the last capture, no bounding box was detected. This may indicate that the meter is not properly set up or that the image quality is poor.
+    </n-alert>
+
+    <n-alert v-if="store.source?.last_error" type="error" title="Source Error" style="margin-top: 16px;">
+      {{ store.source.last_error }}
+    </n-alert>
+
     <br>
-    <WifiStatus v-if="data && data['WiFi-RSSI']" :rssi="data['WiFi-RSSI']" />
-    <br><br>
+    <template v-if="data && data['WiFi-RSSI']">
+      <WifiStatus v-if="data && data['WiFi-RSSI']" :rssi="data['WiFi-RSSI']" />
+      <br><br>
+    </template>
     <n-flex>
 
       <n-popconfirm @positive-click="emit('triggerCapture')" v-if="store.source?.source_type !== 'mqtt'">
@@ -95,7 +112,7 @@
 
 <script setup>
 import { defineProps, defineEmits, computed } from 'vue';
-import { NCard, NFlex, NButton, NPopconfirm, NList, NListItem, NThing, NIcon } from "naive-ui";
+import { NCard, NFlex, NButton, NPopconfirm, NList, NListItem, NThing, NIcon, NAlert } from "naive-ui";
 import { DeleteForeverFilled } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 import {useWatermeterStore} from "@/stores/watermeterStore";

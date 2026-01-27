@@ -79,6 +79,8 @@
             :rssi="item[2]"
             :last_digits="item[4]"
             :last_result="item[3]"
+            :has_bbox="item[5]"
+            :last_error="item[6]"
             @removed="getData"
         />
     </n-flex>
@@ -94,6 +96,7 @@ import AddSourceDialog from "@/components/AddSourceDialog.vue";
 
 const discoveredMeters = ref([]);
 const waterMeters = ref([]);
+const sources = ref([]);
 const loading = ref(false);
 const config = ref(null);
 const showAddSource = ref(false);
@@ -119,6 +122,22 @@ const getData = async () => {
     }
   });
   waterMeters.value = (await response.json())["watermeters"];
+
+  // Load sources to get last_error
+  response = await fetch(host + 'api/sources', {
+    headers: {
+      'secret': `${localStorage.getItem('secret')}`
+    }
+  });
+  const sourcesData = (await response.json())["sources"];
+  sources.value = sourcesData;
+
+  // Add last_error from sources to watermeters
+  waterMeters.value = waterMeters.value.map(meter => {
+    const source = sourcesData.find(s => s.name === meter[0]);
+    return [...meter, source?.last_error || null];
+  });
+
   loading.value = false;
 
   response = await fetch(host + 'api/config', {

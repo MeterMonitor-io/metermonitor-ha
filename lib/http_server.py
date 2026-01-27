@@ -833,7 +833,8 @@ def prepare_setup_app(config, lifespan):
                                FROM evaluations e
                                WHERE e.name = w.name
                                ORDER BY id DESC
-                               LIMIT 1)
+                               LIMIT 1),
+                              w.picture_data_bbox IS NOT NULL
                        FROM watermeters w
                        WHERE w.setup = 1
                        """)
@@ -841,7 +842,8 @@ def prepare_setup_app(config, lifespan):
         result = []
         for row in cursor.fetchall():
             th_digits = json.loads(row[4]) if row[4] else None
-            result.append((row[0], row[1], row[2], row[3], th_digits))
+            has_bbox = bool(row[5])
+            result.append((row[0], row[1], row[2], row[3], th_digits, has_bbox))
 
         return {"watermeters": result}
 

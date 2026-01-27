@@ -1,65 +1,73 @@
 <template>
-  <n-card size="small" style="max-width: 300px;">
-    <template #header>
-      <span class="card-title" :title="meter_name">{{ meter_name }}</span>
-    </template>
-    <n-flex justify="space-around" size="small" v-if="last_digits" :size="[0,0]" class="theme-revert">
-      <img :style="`width:calc(150px / ${last_digits.length});`" class="digit th" v-for="[i,base64] in last_digits.entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" :alt="meter_name"/>
-    </n-flex>
-    <n-flex justify="space-evenly" size="large" v-if="last_result && last_digits">
-      <span
-          class="prediction google-sans-code"
-          v-for="[i, digit] in (last_result + '').padStart(last_digits.length, '0').split('').entries()"
-          :key="i + 'd'"
-      >
-        <template v-if="i === last_digits.length-4">
-          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }},
-        </template>
-        <div v-else-if="i > last_digits.length-4" style="color: #ff9a9a">
-          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
-        </div>
-        <template v-else>
-          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
-        </template>
-
-      </span>
-    </n-flex>
-
-    <!-- Sparkline Chart -->
-    <div v-if="historyData.length > 1" class="sparkline-container">
-      <div class="sparkline-labels">
-        <span>{{ firstValue }}</span>
-        <span>{{ lastValue }}</span>
-      </div>
-      <apexchart
-        type="area"
-        height="40"
-        width="100%"
-        :options="chartOptions"
-        :series="chartSeries"
-      />
-    </div>
-
-    <n-flex justify="space-between">
-    </n-flex>
-    <template #header-extra>
-      {{ last_updated_locale }}
-      <n-dropdown :options="menuOptions" @select="handleMenuSelect">
-        <n-button text>
-          <template #icon>
-            <n-icon><MoreVertFilled /></n-icon>
-          </template>
-        </n-button>
-      </n-dropdown>
-    </template>
-    <template #action>
-      <n-flex justify="space-between">
-        <router-link v-if="setup" :to="'/setup/'+meter_name"><n-button round>Setup</n-button></router-link>
-        <router-link v-else :to="'/meter/'+meter_name"><n-button round>View</n-button></router-link>
-        <WifiStatus v-if="rssi" :rssi="rssi" />
+  <n-flex vertical>
+    <n-card size="small" style="max-width: 300px;" :class="{ 'error-card': hasError, 'no-bb': !hasBB }">
+      <template #header>
+        <span class="card-title" :title="meter_name">{{ meter_name }}</span>
+      </template>
+      <n-flex justify="space-around" size="small" v-if="last_digits" :size="[0,0]" class="theme-revert">
+        <img :style="`width:calc(150px / ${last_digits.length});`" class="digit th" v-for="[i,base64] in last_digits.entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" :alt="meter_name"/>
       </n-flex>
-    </template>
-  </n-card>
+      <n-flex justify="space-evenly" size="large" v-if="last_result && last_digits">
+        <span
+            class="prediction google-sans-code"
+            v-for="[i, digit] in (last_result + '').padStart(last_digits.length, '0').split('').entries()"
+            :key="i + 'd'"
+        >
+          <template v-if="i === last_digits.length-4">
+            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }},
+          </template>
+          <div v-else-if="i > last_digits.length-4" style="color: #ff9a9a">
+            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
+          </div>
+          <template v-else>
+            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
+          </template>
+
+        </span>
+      </n-flex>
+
+      <!-- Sparkline Chart -->
+      <div v-if="historyData.length > 1" class="sparkline-container">
+        <div class="sparkline-labels">
+          <span>{{ firstValue }}</span>
+          <span>{{ lastValue }}</span>
+        </div>
+        <apexchart
+          type="area"
+          height="40"
+          width="100%"
+          :options="chartOptions"
+          :series="chartSeries"
+        />
+      </div>
+
+      <n-flex justify="space-between">
+      </n-flex>
+      <template #header-extra>
+        {{ last_updated_locale }}
+        <n-dropdown :options="menuOptions" @select="handleMenuSelect">
+          <n-button text>
+            <template #icon>
+              <n-icon><MoreVertFilled /></n-icon>
+            </template>
+          </n-button>
+        </n-dropdown>
+      </template>
+      <template #action>
+        <n-flex justify="space-between">
+          <router-link v-if="setup" :to="'/setup/'+meter_name"><n-button round>Setup</n-button></router-link>
+          <router-link v-else :to="'/meter/'+meter_name"><n-button round>View</n-button></router-link>
+          <WifiStatus v-if="rssi" :rssi="rssi" />
+        </n-flex>
+      </template>
+    </n-card>
+    <span v-if="hasError" style="color: #d03050; max-width: 300px;">
+      {{ last_error }}
+    </span>
+    <span v-if="!hasBB" style="color: rgb(240, 138, 0); max-width: 300px;">
+      No bounding box found in the last capture
+    </span>
+  </n-flex>
 </template>
 
 <script setup>
@@ -79,8 +87,13 @@ const props = defineProps([
     'setup',
     'last_digits',
     'last_result',
-    'rssi'
+    'rssi',
+    'last_error',
+    'has_bbox'
 ]);
+
+const hasError = computed(() => !!props.last_error);
+const hasBB = computed(() => !!props.has_bbox);
 
 const historyData = ref([]);
 const host = import.meta.env.VITE_HOST;
@@ -252,5 +265,13 @@ const chartOptions = computed(() => ({
   left: 0;
   right: 0;
   z-index: 1;
+}
+
+.no-bb {
+  border: 2px solid rgb(240, 138, 0) !important;
+}
+
+.error-card {
+  border: 2px solid #d03050 !important;
 }
 </style>
