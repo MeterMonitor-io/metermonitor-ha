@@ -32,12 +32,23 @@ else:
     with open(path, 'r') as f:
         config = json.load(f)
 
-    # merge missing options in options.json with settings.json
+    # merge missing options in options.json with ha_default_settings.json (deep merge)
     with open('ha_default_settings.json', 'r') as f:
-        settings = json.load(f)
-        for key in settings:
-            if key not in config:
-                config[key] = settings[key]
+        defaults = json.load(f)
+
+        def deep_merge(target, source):
+            """Deep merge source into target, preserving non-None values in target"""
+            for key, value in source.items():
+                if key not in target:
+                    target[key] = value
+                elif isinstance(value, dict) and isinstance(target.get(key), dict):
+                    deep_merge(target[key], value)
+                elif target[key] is None and value is not None:
+                    # Replace None with default value
+                    target[key] = value
+            return target
+
+        config = deep_merge(config, defaults)
 
 print("[INIT] Loaded config:")
 # pretty print json
