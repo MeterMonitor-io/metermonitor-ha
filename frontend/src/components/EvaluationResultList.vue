@@ -5,7 +5,7 @@
       </n-empty>
     </div>
     <n-flex v-else justify="center">
-      <div v-for="[i, evaluation] in evaluations.entries()" :key="i" :class="{outdated: evaluation.outdated, item: true}">
+      <div v-for="[i, evaluation] in evaluations.entries()" :key="i" :class="{outdated: evaluation.outdated, item: true}" @click="openDetailDialog(evaluation.id)" style="cursor: pointer;">
         <n-flex :class="{ redbg: evaluation.result == null, econtainer: true }">
           <table>
             <tbody>
@@ -133,17 +133,26 @@
         <n-button @click="emit('loadMore')">Load more</n-button>
       </div>
     </n-flex>
+
+    <EvaluationDetailDialog
+      v-model:show="showDetailDialog"
+      :evaluation-id="selectedEvaluationId"
+      :meter-name="props.name"
+    />
   </div>
 </template>
 
 <script setup>
-import {defineProps, h, defineEmits, computed} from 'vue';
+import {defineProps, h, defineEmits, computed, ref} from 'vue';
 import {NFlex, NTooltip, NEmpty, NButton, NIcon, useDialog} from 'naive-ui';
 import { ArchiveOutlined } from '@vicons/material';
 import DatasetUploader from "@/components/DatasetUploader.vue";
+import EvaluationDetailDialog from "@/components/EvaluationDetailDialog.vue";
 
 const dialog = useDialog();
 const emit = defineEmits(['loadMore', 'datasetUploaded']);
+const showDetailDialog = ref(false);
+const selectedEvaluationId = ref(null);
 
 const props = defineProps({
   evaluations: {
@@ -196,6 +205,11 @@ const formattedTimestamp = (ts) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+const openDetailDialog = (evalId) => {
+  selectedEvaluationId.value = evalId;
+  showDetailDialog.value = true;
 };
 </script>
 

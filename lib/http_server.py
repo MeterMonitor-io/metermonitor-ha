@@ -1146,7 +1146,7 @@ def prepare_setup_app(config, lifespan):
 
         cursor.execute(query, params)
         return {"evals": [{
-            "id": row[7],
+            "id": row[8],
             "colored_digits": json.loads(row[0]) if row[0] else None,
             "th_digits": json.loads(row[1]) if row[1] else None,
             "predictions": json.loads(row[2]) if row[2] else None,
@@ -1158,6 +1158,51 @@ def prepare_setup_app(config, lifespan):
             "denied_digits": json.loads(row[9]) if row[9] else None,
             "th_digits_inverted": json.loads(row[10]) if row[10] else None
         } for row in cursor.fetchall()]}
+
+    @app.get("/api/watermeters/{name}/evals/{eval_id}", dependencies=[Depends(authenticate)])
+    def get_eval_by_id(name: str, eval_id: int):
+        """Get a single evaluation by ID."""
+        cursor = db_connection().cursor()
+
+        # Check if watermeter exists
+        cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Watermeter not found")
+
+        # Get the evaluation
+        cursor.execute("""
+            SELECT colored_digits,
+                   th_digits,
+                   predictions,
+                   timestamp,
+                   result,
+                   total_confidence,
+                   used_confidence,
+                   outdated,
+                   id,
+                   denied_digits,
+                   th_digits_inverted
+            FROM evaluations
+            WHERE name = ? AND id = ?
+        """, (name, eval_id))
+
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Evaluation not found")
+
+        return {
+            "id": row[8],
+            "colored_digits": json.loads(row[0]) if row[0] else None,
+            "th_digits": json.loads(row[1]) if row[1] else None,
+            "predictions": json.loads(row[2]) if row[2] else None,
+            "timestamp": row[3],
+            "result": row[4],
+            "total_confidence": row[5],
+            "used_confidence": row[6],
+            "outdated": row[7],
+            "denied_digits": json.loads(row[9]) if row[9] else None,
+            "th_digits_inverted": json.loads(row[10]) if row[10] else None
+        }
 
     @app.delete("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])
     def delete_evals(name: str):
