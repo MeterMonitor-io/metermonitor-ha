@@ -19,9 +19,13 @@ def _to_ws_url(base_url: str) -> str:
 async def _fetch_entity_registry(base_url: str, token: str) -> List[Dict[str, Any]]:
     ws_url = _to_ws_url(base_url)
 
+    print(f"[FLASH-SUGGEST] Connecting to WebSocket: {ws_url}")
+    print(f"[FLASH-SUGGEST] Token length: {len(token)}")
+
     async with websockets.connect(ws_url) as ws:
         # hello
-        await ws.recv()
+        hello_msg = await ws.recv()
+        print(f"[FLASH-SUGGEST] Received hello: {hello_msg[:100]}")
 
         # auth
         await ws.send(json.dumps({
@@ -29,7 +33,9 @@ async def _fetch_entity_registry(base_url: str, token: str) -> List[Dict[str, An
             "access_token": token
         }))
         auth_resp = json.loads(await ws.recv())
+        print(f"[FLASH-SUGGEST] Auth response type: {auth_resp.get('type')}")
         if auth_resp.get("type") != "auth_ok":
+            print(f"[FLASH-SUGGEST] Auth failed: {auth_resp}")
             raise RuntimeError(f"HA WS auth failed: {auth_resp}")
 
         # entity registry
@@ -39,8 +45,10 @@ async def _fetch_entity_registry(base_url: str, token: str) -> List[Dict[str, An
         }))
         resp = json.loads(await ws.recv())
         if not resp.get("success"):
+            print(f"[FLASH-SUGGEST] Entity registry request failed: {resp}")
             raise RuntimeError(f"entity_registry/list failed: {resp}")
 
+        print(f"[FLASH-SUGGEST] Successfully fetched {len(resp['result'])} entities")
         return resp["result"]
 
 
