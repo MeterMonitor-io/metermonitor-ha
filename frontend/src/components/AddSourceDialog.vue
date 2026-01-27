@@ -1,11 +1,6 @@
 <template>
   <n-modal v-model:show="show" preset="card" title="Add source" style="max-width: 860px;" :mask-closable="!saving && !testing" :closable="!testing">
     <n-space vertical size="large">
-      <n-alert type="info" v-if="selectedType === 'mqtt'">
-        MQTT sources don’t need manual setup.
-        <br />
-        When an ESPHome device publishes images to the configured broker/topic, it will appear under “Waiting for setup”.
-      </n-alert>
 
       <n-form :model="form" :disabled="saving || testing" label-placement="top">
         <n-grid :cols="24" :x-gap="12" :y-gap="8">
@@ -13,11 +8,11 @@
             <n-select v-model:value="selectedType" :options="typeOptions" />
           </n-form-item-gi>
 
-          <n-form-item-gi :span="12" label="Watermeter name">
+          <n-form-item-gi :span="12" label="Watermeter name" v-if="selectedType !== 'mqtt'">
             <n-input v-model:value="form.name" placeholder="e.g. Hauptzaehler" />
           </n-form-item-gi>
 
-          <n-form-item-gi :span="6" label="Enabled">
+          <n-form-item-gi :span="6" label="Enabled" v-if="selectedType !== 'mqtt'">
             <n-switch v-model:value="form.enabled" />
           </n-form-item-gi>
 
@@ -67,6 +62,7 @@
                     type="primary"
                     :loading="testing"
                     @click="testCapture"
+                    :disabled="!form.camera_entity_id"
                   >
                     Test capture
                   </n-button>
@@ -89,13 +85,19 @@
           <template v-if="selectedType === 'http'">
             <n-form-item-gi :span="24">
               <n-alert type="warning" title="HTTP sources">
-                HTTP sources are planned as a third option. For now, you can create the source entry,
-                but ingestion endpoints will be wired in the next step.
+                HTTP sources are not yet implemented. Coming soon!
               </n-alert>
             </n-form-item-gi>
           </template>
         </n-grid>
+
+        <n-alert type="info" v-if="selectedType === 'mqtt'">
+          MQTT sources don’t need manual setup.
+          <br />
+          When an device publishes images to the configured broker/topic, it will appear under “Waiting for setup”.
+        </n-alert>
       </n-form>
+
 
       <n-space justify="end">
         <n-button @click="close" :disabled="saving || testing">Cancel</n-button>
@@ -123,7 +125,7 @@ import {
   NButton,
   NAlert,
   NText,
-  NProgress,
+  NProgress, useMessage,
 } from 'naive-ui';
 import { apiService } from '@/services/api';
 
@@ -181,7 +183,7 @@ function useSuggestedFlash() {
 
 const canCreate = computed(() => {
   if (!form.value.name?.trim()) return false;
-  if (selectedType.value === 'mqtt') return true;
+  if (selectedType.value === 'mqtt') return false;
   if (!form.value.poll_interval_m || form.value.poll_interval_m < 1) return false;
   if (selectedType.value === 'ha_camera') {
     return !!form.value.camera_entity_id;
@@ -227,6 +229,8 @@ function close() {
   show.value = false;
 }
 
+const message = useMessage();
+
 async function create() {
   saving.value = true;
   try {
@@ -249,6 +253,16 @@ async function create() {
     await apiService.postJson('api/sources', payload);
     emit('created');
     show.value = false;
+
+    //clear form
+    form.value = {
+      name: '',
+      enabled: true,
+      poll_interval_m: 10,
+      camera_entity_id: null,
+      flash_entity_id: null,
+      flash_delay_ms: 10000,
+    };
   } catch (e) {
     console.error('Create source failed', e);
   } finally {
@@ -287,7 +301,10 @@ async function testCapture() {
     previewBbox.value = `data:image/${r.format};base64,${r.data}`;
   } catch (e) {
     console.error('Test capture failed', e);
-    testHint.value = 'Test capture failed (see console).';
+    message.error('Test capture failed: ' + (e.message || e), {
+      closable: true,
+      duration: 60000,
+    });
   } finally {
     testing.value = false;
     if (progressInterval) {

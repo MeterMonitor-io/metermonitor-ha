@@ -48,9 +48,9 @@
     </template>
     <template #action>
       <n-flex justify="space-between">
-        <WifiStatus :rssi="rssi" />
         <router-link v-if="setup" :to="'/setup/'+meter_name"><n-button round>Setup</n-button></router-link>
         <router-link v-else :to="'/meter/'+meter_name"><n-button round>View</n-button></router-link>
+        <WifiStatus v-if="rssi" :rssi="rssi" />
       </n-flex>
     </template>
   </n-card>

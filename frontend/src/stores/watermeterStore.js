@@ -8,6 +8,8 @@ export const useWatermeterStore = defineStore('watermeter', () => {
   const evaluations = ref([]);
   const evaluation = ref({});
   const history = ref(null);
+  const source = ref(null);
+  const capturing = ref(false);
   const settings = reactive({
     threshold_low: 0,
     threshold_high: 100,
@@ -93,12 +95,20 @@ export const useWatermeterStore = defineStore('watermeter', () => {
     await apiService.put(`api/watermeters/${meterId}/settings`, payload);
   };
 
+  const fetchSource = async (meterId) => {
+    const data = await apiService.getJson('api/sources');
+    const meterSource = data.sources.find(s => s.name === meterId);
+    source.value = meterSource || null;
+    return meterSource;
+  };
+
   const fetchAll = async (meterId) => {
     await Promise.all([
       fetchWatermeter(meterId),
       fetchEvaluations(meterId),
       fetchHistory(meterId),
       fetchSettings(meterId),
+      fetchSource(meterId),
     ]);
   };
 
@@ -108,13 +118,16 @@ export const useWatermeterStore = defineStore('watermeter', () => {
     evaluations,
     evaluation,
     history,
+    source,
     settings,
+    capturing,
     // Actions
     fetchWatermeter,
     fetchEvaluations,
     fetchHistory,
     fetchSettings,
     updateSettings,
+    fetchSource,
     fetchAll,
   };
 });

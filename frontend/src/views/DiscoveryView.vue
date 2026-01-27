@@ -1,5 +1,5 @@
 <template>
-  <n-flex justify="space-between" align="center">
+  <n-flex align="center">
     <n-flex align="center">
       <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px" class="theme-revert"/>
       <n-button :loading="loading" @click="getData" round size="large">Refresh</n-button>
@@ -13,56 +13,51 @@
   <AddSourceDialog v-model:show="showAddSource" @created="getData" />
 
   <template v-if="discoveredMeters.length === 0 && waterMeters.length === 0 && config">
-    <n-h2>Welcome</n-h2>
-    <n-card size="small" style="max-width: 900px;">
-      <n-space vertical size="large">
-        <div>
-          No meters yet.
-          <br />
-          If you use ESPHome + MQTT, devices will appear automatically once they publish images.
-          You can also add a Home Assistant camera source via the button above.
-        </div>
+    <n-h2>Welcome to MeterMonitor!</n-h2>
+    <n-space vertical size="large">
+      <div>
+        If you use MQTT, devices will appear automatically once they publish images.<br>
+        You can also add a Home Assistant camera source via the button above.
+      </div>
+      <n-flex>
+        <n-button quaternary type="info">
+          <a href="https://esphome.io/components/camera/esp32_camera.html" target="_blank" rel="noreferrer" style="text-decoration: none; color: inherit;">
+            ESPHome ESP32-CAM setup guide
+          </a>
+        </n-button>
 
-        <n-divider />
-
-        <div>
-          <b>Helpful links</b>
-          <ul>
-            <li>
-              <a href="https://esphome.io/" target="_blank" rel="noreferrer">ESPHome documentation</a>
-            </li>
-            <li>
-              <a href="https://github.com/phiph-s/metermonitor-managementserver/" target="_blank" rel="noreferrer">Project README (GitHub)</a>
-            </li>
-          </ul>
+        <n-button quaternary type="info">
+          <a href="https://github.com/phiph-s/metermonitor-managementserver/" target="_blank" rel="noreferrer" style="text-decoration: none; color: inherit;">
+            GitHub Documentation
+          </a>
+        </n-button>
+      </n-flex>
+      <n-divider />
+      <div>
+        <b>MQTT payload format</b>
+        <div class="code">
+          {<br>
+          &nbsp;"name": "unique name",<br>
+          &nbsp;"picture_number": 57,<br>
+          &nbsp;"WiFi-RSSI": -57,<br>
+          &nbsp;"picture": {<br>
+          &nbsp;&nbsp;"format": "jpeg",<br>
+          &nbsp;&nbsp;"timestamp": "2025-...",<br>
+          &nbsp;&nbsp;"width": 640,<br>
+          &nbsp;&nbsp;"height": 320,<br>
+          &nbsp;&nbsp;"length": 12345,<br>
+          &nbsp;&nbsp;"data": "..."<br>
+          &nbsp;}<br>
+          }
         </div>
+      </div>
 
-        <div>
-          <b>MQTT payload format</b>
-          <div class="code">
-            {<br>
-            &nbsp;"name": "unique name",<br>
-            &nbsp;"picture_number": 57,<br>
-            &nbsp;"WiFi-RSSI": -57,<br>
-            &nbsp;"picture": {<br>
-            &nbsp;&nbsp;"format": "jpeg",<br>
-            &nbsp;&nbsp;"timestamp": "2025-...",<br>
-            &nbsp;&nbsp;"width": 640,<br>
-            &nbsp;&nbsp;"height": 320,<br>
-            &nbsp;&nbsp;"length": 12345,<br>
-            &nbsp;&nbsp;"data": "..."<br>
-            &nbsp;}<br>
-            }
-          </div>
-        </div>
-
-        <div>
-          <b>Current MQTT config</b><br />
-          Broker: <span class="code-inline">{{ config?.mqtt?.broker }}</span><br />
-          Topic: <span class="code-inline">{{ config?.mqtt?.topic }}</span>
-        </div>
-      </n-space>
-    </n-card>
+      <div>
+        <b>Current MQTT config</b><br />
+        Broker: <span class="code-inline">{{ config?.mqtt?.broker }}</span><br />
+        Topic: <span class="code-inline">{{ config?.mqtt?.topic }}</span>
+      </div>
+    </n-space>
   </template>
 
   <template v-if="discoveredMeters.length > 0">

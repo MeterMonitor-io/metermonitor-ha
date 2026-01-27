@@ -1,16 +1,18 @@
 <template>
     <n-config-provider :theme="currentTheme" :theme-overrides="currentThemeOverrides">
         <n-dialog-provider>
-          <n-notification-provider :placement="'bottom-right'">
-            <app></app>
-          </n-notification-provider>
+          <n-message-provider>
+            <n-notification-provider :placement="'bottom-right'">
+              <app></app>
+            </n-notification-provider>
+          </n-message-provider>
         </n-dialog-provider>
     </n-config-provider>
 </template>
 
 <script setup>
 import App from "@/App.vue";
-import { NConfigProvider, NDialogProvider, NNotificationProvider } from 'naive-ui';
+import { NConfigProvider, NDialogProvider, NNotificationProvider, NMessageProvider } from 'naive-ui';
 import { darkTheme, lightTheme } from 'naive-ui';
 import { computed } from 'vue';
 import { useThemeStore } from '@/stores/themeStore';

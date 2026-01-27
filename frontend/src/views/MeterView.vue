@@ -11,7 +11,6 @@
     </n-button>
   </n-flex>
   <br />
-
   <template v-if="isMobile">
     <n-tabs type="line" animated>
       <n-tab-pane name="details" tab="Details">
@@ -21,6 +20,7 @@
           :id="id"
           :downloadingDataset="downloadingDataset"
           @resetToSetup="resetToSetup"
+          @triggerCapture="triggerCapture"
           @deleteMeter="deleteMeter"
           @clearEvaluations="clearEvaluations"
           @downloadDataset="downloadDataset"
@@ -47,6 +47,7 @@
           :id="id"
           :downloadingDataset="downloadingDataset"
           @resetToSetup="resetToSetup"
+          @triggerCapture="triggerCapture"
           @deleteMeter="deleteMeter"
           @clearEvaluations="clearEvaluations"
           @downloadDataset="downloadDataset"
@@ -70,7 +71,7 @@ import router from '@/router';
 import EvaluationResultList from "@/components/EvaluationResultList.vue";
 import MeterDetails from "@/components/MeterDetails.vue";
 import MeterCharts from "@/components/MeterCharts.vue";
-import {NFlex, NButton, NGrid, NGi, NTabs, NTabPane} from "naive-ui";
+import {NFlex, NButton, NGrid, NGi, NTabs, NTabPane, useMessage} from "naive-ui";
 import { useWatermeterStore } from '@/stores/watermeterStore';
 import { storeToRefs } from 'pinia';
 
@@ -137,6 +138,36 @@ const resetToSetup = async () => {
     router.replace({ path: '/setup/' + id });
   } else {
     console.log('Error resetting meter');
+  }
+};
+
+const message = useMessage();
+
+const triggerCapture = async () => {
+  try {
+    store.capturing = true;
+    const response = await fetch(host + 'api/sources/' + store.source.id + '/capture', {
+      method: 'POST',
+      headers: { secret: localStorage.getItem('secret') }
+    });
+    store.capturing = false;
+
+    if (response.status === 200) {
+      console.log('Capture triggered successfully');
+    } else {
+      console.log('Error triggering capture');
+      message.error('Error triggering capture: ' + (await response.json()).detail, {
+        closable: true,
+        duration: 60000
+      });
+    }
+
+    // refresh meter data to get the new picture
+    await loadMeter();
+  } catch (err) {
+    message.error('Error triggering capture: ' + err.message);
+    console.log('Error triggering capture:', err);
+    // get data from response and show error message
   }
 };
 

@@ -69,7 +69,11 @@ class ApiService {
     if (response.ok) {
       return await response.json();
     }
-    throw new Error(`API request failed: ${response.status}`);
+    else{
+      // extract error message from response
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `API request failed: ${response.status}`);
+    }
   }
 }
 

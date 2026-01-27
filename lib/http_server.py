@@ -29,7 +29,7 @@ from lib.ha_flash_suggestion import suggest_flash_entity
 from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
 from lib.threshold_optimizer import search_thresholds_for_meter
-from lib.capture_utils import capture_and_process_source
+from lib.capture_utils import capture_and_process_source, capture_from_ha_source
 
 
 # http server class
@@ -247,8 +247,10 @@ def prepare_setup_app(config, lifespan):
                     raise HTTPException(status_code=400, detail="config.flash_delay_ms must be between 0 and 10000")
 
         if st in {"http"}:
-            # reserve for webhook/pull style; poll_interval optional
-            pass
+            return HTTPException(status_code=400, detail="Source type http not yet implemented")
+
+        if st in {"mqtt"}:
+            return HTTPException(status_code=400, detail="Source type mqtt cannot be created via HTTP API")
 
         db = db_connection()
         db.row_factory = sqlite3.Row
@@ -310,6 +312,24 @@ def prepare_setup_app(config, lifespan):
             raise HTTPException(status_code=404, detail="Source not found")
         db.commit()
         return {"message": "Source deleted", "id": source_id}
+
+    @app.post("/api/sources/{source_id}/capture", dependencies=[Depends(authenticate)])
+    def trigger_source_capture(source_id: int):
+        print(f"[HTTP] Manual capture trigger for source ID {source_id}")
+        db = db_connection()
+        db.row_factory = sqlite3.Row
+        cur = db.cursor()
+        cur.execute("SELECT * FROM sources WHERE id = ?", (source_id,))
+        row = cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Source not found")
+
+        try:
+            capture_and_process_source(config, config['dbfile'], row, meter_preditor)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Capture processing failed: {e}")
+
+        return {"message": "Capture and processing triggered"}
 
     # --- Camera sources CRUD (compat wrapper around sources table) ---
     @app.get("/api/camera-sources", dependencies=[Depends(authenticate)])
@@ -550,39 +570,24 @@ def prepare_setup_app(config, lifespan):
         flash_entity_id = payload.flash_entity_id
         flash_delay_ms = payload.flash_delay_ms or 10000  # default if not provided
 
-        # optionally enable flash
-        flash_enabled = False
         try:
-            if isinstance(flash_entity_id, str) and flash_entity_id.strip():
-                _ha_request_json_with_method(
-                    f"/api/services/light/turn_on",
-                    method='POST',
-                    body={'entity_id': flash_entity_id},
-                )
-                flash_enabled = True
-                # ESP32Cam often runs at 0.1-1 FPS; give it time to update exposure/frame
-                time.sleep(max(0.0, flash_delay_ms / 1000.0))
-
-            # snapshot via camera proxy (returns jpeg/png bytes)
-            raw = _ha_get_bytes(f"/api/camera_proxy/{cam_entity_id}")
+            raw, itype, flash_enabled = capture_from_ha_source(config, {
+                'camera_entity_id': cam_entity_id,
+                'flash_entity_id': flash_entity_id,
+                'flash_delay_ms': flash_delay_ms,
+            })
             b64 = base64.b64encode(raw).decode('utf-8')
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Capture failed: {e}")
 
-            return {
-                "result": True,
-                "data": b64,
-                "format": "jpeg",  # assume jpeg for now
-                "flash_used": bool(flash_enabled),
-            }
-        finally:
-            if flash_enabled:
-                try:
-                    _ha_request_json_with_method(
-                        f"/api/services/light/turn_off",
-                        method='POST',
-                        body={'entity_id': flash_entity_id},
-                    )
-                except Exception:
-                    pass
+        return {
+            "result": True,
+            "data": b64,
+            "format": itype,
+            "flash_used": bool(flash_enabled),
+        }
 
     # --- Watermeter settings (CRUD) ---
     @app.get("/api/settings", dependencies=[Depends(authenticate)])
@@ -1220,6 +1225,28 @@ def prepare_setup_app(config, lifespan):
         )
         db.commit()
         return {"message": "Eval added", "name": name}
+
+    @app.post("/api/evaluate/single", dependencies=[Depends(authenticate)])
+    def evaluate(
+            base64str: str = Body(...),  # Changed from Query to Body for POST requests
+            threshold_low: float = Body(0, ge=0, le=255),
+            threshold_high: float = Body(155, ge=0, le=255),
+            islanding_padding: int = Body(20, ge=0),
+            invert: bool = Body(False)
+    ):
+            # Decode the base64 image
+            image_data = base64.b64decode(base64str)
+
+            # Get PIL image from base64
+            image = Image.open(BytesIO(image_data))
+            # to numpy array
+            image = np.array(image)
+
+            # Apply threshold with the passed values
+            base64r, digits = meter_preditor.apply_threshold(image, threshold_low, threshold_high, islanding_padding, invert=invert)
+
+            # Return the result
+            return {"base64": base64r}
 
     @app.get("/")
     async def serve_index():

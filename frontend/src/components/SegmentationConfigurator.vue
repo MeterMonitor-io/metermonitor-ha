@@ -2,7 +2,9 @@
   <n-card>
     <template #cover>
       <div class="image-container">
-        <img v-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" />
+        <img v-if="lastPicture && lastPicture.picture.data_bbox" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" />
+        <img v-else-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data" alt="Watermeter" />
+
         <span class="timestamp-overlay">{{ formattedTimestamp }}</span>
       </div>
     </template>

@@ -253,6 +253,10 @@ class MeterPredictor:
         width = width_pixel / scale
         height = height_pixel / scale
 
+        if height > width:
+            width, height = height, width
+            rotation = rotation + (np.pi / 2.0)
+
         # Convert OBB (center, size, rotation) to 4 corner points
         # Create corner offsets (unrotated box)
         hw = width / 2.0
@@ -285,19 +289,17 @@ class MeterPredictor:
         # Reshape OBB coordinates into four (x,y) points
         points = obb_coords.reshape(4, 2).astype(np.float32)
         # Sort the points by y-coordinate (top to bottom)
-        points = sorted(points, key=lambda x: x[1])
-        # Separate top-left, top-right vs bottom-left, bottom-right
-        if points[0][0] < points[1][0]:
-            top_left, top_right = points[0], points[1]
-        else:
-            top_left, top_right = points[1], points[0]
+        # Robust point ordering: [top-left, top-right, bottom-right, bottom-left]
+        pts = points.astype(np.float32)
 
-        if points[2][0] < points[3][0]:
-            bottom_left, bottom_right = points[2], points[3]
-        else:
-            bottom_left, bottom_right = points[3], points[2]
+        s = pts.sum(axis=1)  # x+y
+        diff = np.diff(pts, axis=1).ravel()  # x-y
 
-        # Reassemble into final order: [top-left, top-right, bottom-right, bottom-left]
+        top_left = pts[np.argmin(s)]
+        bottom_right = pts[np.argmax(s)]
+        top_right = pts[np.argmin(diff)]
+        bottom_left = pts[np.argmax(diff)]
+
         points = np.array([top_left, top_right, bottom_right, bottom_left], dtype="float32")
 
         # Compute bounding box width/height
@@ -321,16 +323,13 @@ class MeterPredictor:
         rotated_cropped_img = cv2.warpPerspective(img, M, (max_width, max_height))
         rotated_cropped_img_ext = None
 
-        # Ensure we always split along the wider side (display digits are arranged horizontally).
-        # If the perspective warp ended up with height > width, rotate by 90° so width is the long edge.
-        # This prevents accidentally segmenting along the short edge.
-        if rotated_cropped_img is not None and rotated_cropped_img.shape[0] > rotated_cropped_img.shape[1]:
+        if rotated_cropped_img.shape[0] > rotated_cropped_img.shape[1]:
             rotated_cropped_img = cv2.rotate(rotated_cropped_img, cv2.ROTATE_90_CLOCKWISE)
 
         # Cut out a larger area for the last digit
         if extended_last_digit:
             rotated_cropped_img_ext = cv2.warpPerspective(img, M, (max_width, int(max_height * 1.2)))
-            if rotated_cropped_img_ext is not None and rotated_cropped_img_ext.shape[0] > rotated_cropped_img_ext.shape[1]:
+            if rotated_cropped_img_ext.shape[0] > rotated_cropped_img_ext.shape[1]:
                 rotated_cropped_img_ext = cv2.rotate(rotated_cropped_img_ext, cv2.ROTATE_90_CLOCKWISE)
 
         # Split the cropped meter into segments vertical parts for classification
