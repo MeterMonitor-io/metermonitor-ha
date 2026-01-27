@@ -44,6 +44,9 @@
       <n-flex justify="space-between">
       </n-flex>
       <template #header-extra>
+        <n-icon :color="sourceColor" style="margin-right: 6px;">
+          <component :is="sourceIcon" />
+        </n-icon>
         {{ last_updated_locale }}
         <n-dropdown :options="menuOptions" @select="handleMenuSelect">
           <n-button text>
@@ -73,10 +76,11 @@
 <script setup>
 import {NCard, NButton, NFlex, NDropdown, NIcon, useDialog} from 'naive-ui';
 import {defineProps, computed, ref, onMounted} from 'vue';
-import { MoreVertFilled } from '@vicons/material';
+import { MoreVertFilled, HomeOutlined, PublicFilled, WifiTetheringOutlined, HelpOutlineOutlined } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 import { useThemeStore } from '@/stores/themeStore';
 import { storeToRefs } from 'pinia';
+import { getSourceColor, normalizeSourceType } from '@/utils/sourceMeta';
 
 const themeStore = useThemeStore();
 const { isDark } = storeToRefs(themeStore);
@@ -89,11 +93,20 @@ const props = defineProps([
     'last_result',
     'rssi',
     'last_error',
-    'has_bbox'
+    'has_bbox',
+    'source_type'
 ]);
 
 const hasError = computed(() => !!props.last_error);
 const hasBB = computed(() => !!props.has_bbox);
+const sourceType = computed(() => normalizeSourceType(props.source_type));
+const sourceColor = computed(() => getSourceColor(sourceType.value));
+const sourceIcon = computed(() => {
+  if (sourceType.value === 'mqtt') return WifiTetheringOutlined;
+  if (sourceType.value === 'ha_camera') return HomeOutlined;
+  if (sourceType.value === 'http') return PublicFilled;
+  return HelpOutlineOutlined;
+});
 
 const historyData = ref([]);
 const host = import.meta.env.VITE_HOST;

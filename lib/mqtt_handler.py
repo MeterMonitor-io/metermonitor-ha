@@ -111,6 +111,7 @@ class MQTTHandler:
 
             print(f"[MQTT] Received message for watermeter {data['name']}")
 
+
             # Check if timestamp is 0 or null, if so set it to current time
             if not data['picture']['timestamp']or data['picture']['timestamp'] == "0":
                 # current iso time
@@ -118,10 +119,19 @@ class MQTTHandler:
                 print(f"[MQTT] Timestamp was missing or zero, set to current time for {data['name']} ({data['picture']['timestamp']})")
 
             with sqlite3.connect(self.db_file) as conn:
+
                 cursor = conn.cursor()
                 #check if watermeter exists
                 cursor.execute("SELECT * FROM watermeters WHERE name = ?", (data['name'],))
                 meter_exists = cursor.fetchone() is not None
+
+                # check if source for watermeter exists and is enabled
+                cursor.execute("SELECT enabled FROM sources WHERE name = ? AND source_type = 'mqtt'", (data['name'],))
+                result = cursor.fetchone()
+
+                if result is None or not result[0]:
+                    print(f"[MQTT] Source for watermeter {data['name']} is disabled or does not exist")
+                    return
 
                 if not meter_exists:
                     cursor.execute('''

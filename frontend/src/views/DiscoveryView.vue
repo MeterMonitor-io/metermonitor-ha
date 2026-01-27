@@ -63,7 +63,16 @@
   <template v-if="discoveredMeters.length > 0">
     <n-h2>Waiting for setup</n-h2>
     <n-flex>
-        <WaterMeterCard v-for="item in discoveredMeters" :key="item.id" :last_updated="item[1]" :meter_name="item[0]" :setup="true" :rssi="item[2]" @removed="getData" />
+        <WaterMeterCard
+          v-for="item in discoveredMeters"
+          :key="item.id"
+          :last_updated="item[1]"
+          :meter_name="item[0]"
+          :setup="true"
+          :rssi="item[2]"
+          source_type="mqtt"
+          @removed="getData"
+        />
     </n-flex>
   </template>
 
@@ -81,6 +90,7 @@
             :last_result="item[3]"
             :has_bbox="item[5]"
             :last_error="item[6]"
+            :source_type="item[7]"
             @removed="getData"
         />
     </n-flex>
@@ -135,7 +145,7 @@ const getData = async () => {
   // Add last_error from sources to watermeters
   waterMeters.value = waterMeters.value.map(meter => {
     const source = sourcesData.find(s => s.name === meter[0]);
-    return [...meter, source?.last_error || null];
+    return [...meter, source?.last_error || null, source?.source_type || 'mqtt'];
   });
 
   loading.value = false;
