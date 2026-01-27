@@ -25,6 +25,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, FileResponse, StreamingResponse
 
 from lib.functions import reevaluate_latest_picture, add_history_entry, reevaluate_digits
+from lib.ha_flash_suggestion import suggest_flash_entity
 from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
 from lib.threshold_optimizer import search_thresholds_for_meter
@@ -99,6 +100,11 @@ def prepare_setup_app(config, lifespan):
         extended_last_digit: bool
         max_flow_rate: float
         conf_threshold: float
+
+    class CaptureNowRequest(BaseModel):
+        cam_entity_id: str
+        flash_entity_id: Optional[str] = None
+        flash_delay_ms: Optional[int] = None
 
     class SettingsUpdateRequest(BaseModel):
         threshold_low: int
@@ -409,39 +415,6 @@ def prepare_setup_app(config, lifespan):
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"HA API unexpected error: {e}")
 
-    def _suggest_flash_entity(camera_entity_id: str, states: list) -> Optional[str]:
-        # Based on esphome_esp32cam_example.yaml:
-        # camera friendly_name: "Watermeter Camera"
-        # light friendly_name:  "Watermeter LED"
-        cam_state = None
-        for st in states:
-            if st.get('entity_id') == camera_entity_id:
-                cam_state = st
-                break
-        if not cam_state:
-            return None
-        cam_fn = ((cam_state.get('attributes') or {}).get('friendly_name'))
-        if not isinstance(cam_fn, str) or not cam_fn.strip():
-            return None
-
-        candidates = []
-        if cam_fn.endswith(' Camera'):
-            candidates.append(cam_fn[:-7] + ' LED')
-        candidates.append(cam_fn.replace(' Camera', ' LED'))
-
-        lights_by_fn = {}
-        for st in states:
-            ent_id = st.get('entity_id')
-            if isinstance(ent_id, str) and ent_id.startswith('light.'):
-                fn = ((st.get('attributes') or {}).get('friendly_name'))
-                if isinstance(fn, str) and fn.strip():
-                    lights_by_fn[fn] = ent_id
-
-        for cand in candidates:
-            if cand in lights_by_fn:
-                return lights_by_fn[cand]
-        return None
-
     def _ha_request_json(path: str) -> dict:
         return _ha_request_json_with_method(path, method='GET', body=None)
 
@@ -473,20 +446,33 @@ def prepare_setup_app(config, lifespan):
     @app.get('/api/ha/cameras', dependencies=[Depends(authenticate)])
     def ha_cameras():
         states = _ha_request_json('/api/states')
+
         cams = []
         if isinstance(states, list):
             for st in states:
-                try:
-                    ent_id = st.get('entity_id')
-                    if isinstance(ent_id, str) and ent_id.startswith('camera.'):
-                        attrs = st.get('attributes') or {}
-                        cams.append({
-                            'entity_id': ent_id,
-                            'name': attrs.get('friendly_name') or ent_id,
-                            'suggested_flash_entity_id': _suggest_flash_entity(ent_id, states)
-                        })
-                except Exception:
+                ent_id = st.get('entity_id')
+                if not isinstance(ent_id, str) or not ent_id.startswith('camera.'):
                     continue
+
+                attrs = st.get('attributes') or {}
+
+                try:
+                    suggested = suggest_flash_entity(
+                        ha_base_url=_get_ha_base_url(),  # z.B. http://homeassistant.local:8123
+                        ha_token=_get_ha_token(),  # Long-lived access token
+                        camera_entity_id=ent_id,
+                        states=states
+                    )
+                except Exception as e:
+                    print(f"[FLASH-SUGGEST] error for {ent_id}: {e}")
+                    suggested = None
+
+                cams.append({
+                    'entity_id': ent_id,
+                    'name': attrs.get('friendly_name') or ent_id,
+                    'suggested_flash_entity_id': suggested
+                })
+
         cams.sort(key=lambda x: x['entity_id'])
         return {'cameras': cams}
 
@@ -540,34 +526,11 @@ def prepare_setup_app(config, lifespan):
         except Exception:
             return {}
 
-    @app.post('/api/sources/{source_id}/capture-now', dependencies=[Depends(authenticate)])
-    def capture_now(source_id: int):
-        """Trigger a one-off capture for a source.
-
-        Currently supports: ha_camera
-        - Optional flash: config.flash_entity_id (light.*) is turned on briefly before snapshot and turned off afterwards.
-        """
-        db = db_connection()
-        db.row_factory = sqlite3.Row
-        cur = db.cursor()
-        cur.execute("SELECT * FROM sources WHERE id = ?", (source_id,))
-        src = cur.fetchone()
-        if src is None:
-            raise HTTPException(status_code=404, detail='Source not found')
-
-        if src["source_type"] != 'ha_camera':
-            raise HTTPException(status_code=400, detail='capture-now currently supported only for ha_camera sources')
-
-        cfg = _extract_ha_camera_config(src)
-        camera_entity_id = cfg.get('camera_entity_id')
-        flash_entity_id = cfg.get('flash_entity_id')
-        flash_delay_ms = cfg.get('flash_delay_ms', None)
-        try:
-            flash_delay_ms = int(flash_delay_ms) if flash_delay_ms is not None else 1200
-        except Exception:
-            flash_delay_ms = 1200
-        if not camera_entity_id:
-            raise HTTPException(status_code=400, detail='Missing config.camera_entity_id')
+    @app.post('/api/capture-now', dependencies=[Depends(authenticate)])
+    def capture_now(payload: CaptureNowRequest):
+        cam_entity_id = payload.cam_entity_id
+        flash_entity_id = payload.flash_entity_id
+        flash_delay_ms = payload.flash_delay_ms or 10000  # default if not provided
 
         # optionally enable flash
         flash_enabled = False
@@ -583,49 +546,14 @@ def prepare_setup_app(config, lifespan):
                 time.sleep(max(0.0, flash_delay_ms / 1000.0))
 
             # snapshot via camera proxy (returns jpeg/png bytes)
-            raw = _ha_get_bytes(f"/api/camera_proxy/{camera_entity_id}")
+            raw = _ha_get_bytes(f"/api/camera_proxy/{cam_entity_id}")
             b64 = base64.b64encode(raw).decode('utf-8')
-
-            # store in watermeters
-            meter_name = src["name"]
-            _ensure_meter_exists(db, meter_name)
-            # increment picture_number
-            cur.execute("SELECT picture_number FROM watermeters WHERE name = ?", (meter_name,))
-            row = cur.fetchone()
-            picture_number = int(row[0] or 0) + 1 if row else 1
-            ts = time.strftime('%Y-%m-%dT%H:%M:%S')
-            # We don't know exact dims without decoding; keep minimal metadata (format inferred best-effort)
-            fmt = 'jpeg'
-            if raw[:8] == b'\x89PNG\r\n\x1a\n':
-                fmt = 'png'
-
-            cur.execute(
-                "UPDATE watermeters SET picture_number = ?, picture_format = ?, picture_timestamp = ?, picture_length = ?, picture_data = ?, picture_data_bbox = NULL WHERE name = ?",
-                (picture_number, fmt, ts, len(raw), b64, meter_name),
-            )
-            db.commit()
-
-            # reevaluate and store bbox
-            r = reevaluate_latest_picture(config['dbfile'], meter_name, meter_preditor, config, publish=False, skip_setup_overwriting=False)
-            if r is None:
-                cur.execute("UPDATE sources SET last_error = ?, last_success_ts = NULL, updated_ts = datetime('now') WHERE id = ?",
-                            ("Reevaluation failed", source_id))
-                db.commit()
-                return {"result": False, "message": "Capture stored, but reevaluation failed"}
-
-            target_brightness, confidence, bbox_base64 = r
-            cur.execute("UPDATE watermeters SET picture_data_bbox = ? WHERE name = ?", (bbox_base64, meter_name))
-            cur.execute("UPDATE sources SET last_error = NULL, last_success_ts = datetime('now'), updated_ts = datetime('now') WHERE id = ?",
-                        (source_id,))
-            db.commit()
 
             return {
                 "result": True,
-                "name": meter_name,
-                "picture_number": picture_number,
+                "data": b64,
+                "format": "jpeg",  # assume jpeg for now
                 "flash_used": bool(flash_enabled),
-                "target_brightness": target_brightness,
-                "confidence": confidence,
             }
         finally:
             if flash_enabled:

@@ -21,8 +21,8 @@
             <n-switch v-model:value="form.enabled" />
           </n-form-item-gi>
 
-          <n-form-item-gi :span="6" label="Poll interval (s)" v-if="selectedType !== 'mqtt'">
-            <n-input-number v-model:value="form.poll_interval_s" :min="1" :max="3600" />
+          <n-form-item-gi :span="6" label="Poll interval (m)" v-if="selectedType !== 'mqtt'">
+            <n-input-number v-model:value="form.poll_interval_m" :min="1" :max="3600" />
           </n-form-item-gi>
 
           <!-- Home Assistant camera config -->
@@ -65,15 +65,10 @@
                 <n-space>
                   <n-button
                     type="primary"
-                    :disabled="!canTest"
                     :loading="testing"
                     @click="testCapture"
                   >
                     Test capture
-                  </n-button>
-
-                  <n-button secondary :disabled="!lastCreatedSourceId" @click="openSetupIfExists">
-                    Open setup (if created)
                   </n-button>
 
                   <n-text depth="3" v-if="testHint">
@@ -152,17 +147,16 @@ const typeOptions = [
 const form = ref({
   name: '',
   enabled: true,
-  poll_interval_s: 10,
+  poll_interval_m: 10,
   camera_entity_id: null,
   flash_entity_id: null,
-  flash_delay_ms: 1200,
+  flash_delay_ms: 10000,
 });
 
 const saving = ref(false);
 const testing = ref(false);
 const loadingCameras = ref(false);
 const cameras = ref([]);
-const lastCreatedSourceId = ref(null);
 const previewBbox = ref(null);
 const testHint = ref('');
 
@@ -184,15 +178,11 @@ function useSuggestedFlash() {
 const canCreate = computed(() => {
   if (!form.value.name?.trim()) return false;
   if (selectedType.value === 'mqtt') return true;
-  if (!form.value.poll_interval_s || form.value.poll_interval_s < 1) return false;
+  if (!form.value.poll_interval_m || form.value.poll_interval_m < 1) return false;
   if (selectedType.value === 'ha_camera') {
     return !!form.value.camera_entity_id;
   }
   return true;
-});
-
-const canTest = computed(() => {
-  return selectedType.value === 'ha_camera' && canCreate.value;
 });
 
 async function loadCameras() {
@@ -240,7 +230,7 @@ async function create() {
       name: form.value.name.trim(),
       source_type: selectedType.value,
       enabled: !!form.value.enabled,
-      poll_interval_s: selectedType.value === 'mqtt' ? null : form.value.poll_interval_s,
+      poll_interval_s: selectedType.value === 'mqtt' ? null : form.value.poll_interval_m * 60,
       config: undefined,
     };
 
@@ -253,14 +243,6 @@ async function create() {
     }
 
     await apiService.postJson('api/sources', payload);
-
-    // fetch sources to find id
-    const sources = await apiService.getJson('api/sources');
-    const created = (sources.sources || []).find(
-      (s) => s.name === payload.name && s.source_type === payload.source_type
-    );
-    lastCreatedSourceId.value = created?.id || null;
-
     emit('created');
     show.value = false;
   } catch (e) {
@@ -276,18 +258,11 @@ async function testCapture() {
   previewBbox.value = null;
 
   try {
-    // Ensure source exists
-    if (!lastCreatedSourceId.value) {
-      await create();
-      // modal may be closed by create(); reopen for test
-      show.value = true;
-    }
-    if (!lastCreatedSourceId.value) {
-      testHint.value = 'Could not determine source id.';
-      return;
-    }
-
-    const r = await apiService.postJson(`api/sources/${lastCreatedSourceId.value}/capture-now`, {});
+    const r = await apiService.postJson(`api/capture-now`, {
+      cam_entity_id: form.value.camera_entity_id,
+      flash_entity_id: form.value.flash_entity_id || null,
+      flash_delay_ms: form.value.flash_delay_ms,
+    });
 
     if (!r.result) {
       testHint.value = r.message || 'Capture failed.';
@@ -295,25 +270,13 @@ async function testCapture() {
     }
 
     testHint.value = `Capture ok (flash: ${r.flash_used ? 'on' : 'off'})`;
-
-    // Fetch bbox image from meter endpoint (existing endpoint in backend)
-    const meter = await apiService.getJson(`api/watermeters/${form.value.name.trim()}`);
-    if (meter?.picture?.data_bbox && meter?.picture?.format) {
-      previewBbox.value = `data:image/${meter.picture.format};base64,${meter.picture.data_bbox}`;
-    } else {
-      testHint.value = 'Capture ok, but no bbox preview available yet.';
-    }
+    previewBbox.value = `data:image/${r.format};base64,${r.data}`;
   } catch (e) {
     console.error('Test capture failed', e);
     testHint.value = 'Test capture failed (see console).';
   } finally {
     testing.value = false;
   }
-}
-
-async function openSetupIfExists() {
-  if (!form.value.name) return;
-  await router.push({ path: `/setup/${form.value.name.trim()}` });
 }
 
 onMounted(async () => {
