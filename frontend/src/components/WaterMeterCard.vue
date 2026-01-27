@@ -1,76 +1,88 @@
 <template>
-  <n-flex vertical>
-    <n-card size="small" style="width: 300px;" :class="{ 'error-card': hasError, 'no-bb': !hasBB && !setup }">
-      <template #header>
-        <span class="card-title" :title="meter_name">{{ meter_name }}</span>
-      </template>
-      <n-flex justify="space-around" size="small" v-if="last_digits" :size="[0,0]" class="theme-revert">
-        <img :style="`width:calc(150px / ${last_digits.length});`" class="digit th" v-for="[i,base64] in last_digits.entries()" :key="i + 'c'" :src="'data:image/png;base64,' + base64" :alt="meter_name"/>
-      </n-flex>
-      <n-flex justify="space-evenly" size="large" v-if="last_result && last_digits">
-        <span
-            class="prediction google-sans-code"
-            v-for="[i, digit] in (last_result + '').padStart(last_digits.length, '0').split('').entries()"
-            :key="i + 'd'"
-        >
-          <template v-if="i === last_digits.length-4">
-            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }},
-          </template>
-          <div v-else-if="i > last_digits.length-4" style="color: #ff9a9a">
-            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
-          </div>
-          <template v-else>
-            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
-          </template>
-
-        </span>
-      </n-flex>
-
-      <!-- Sparkline Chart -->
-      <div v-if="historyData.length > 1" class="sparkline-container">
-        <div class="sparkline-labels">
-          <span>{{ firstValue }}</span>
-          <span>{{ lastValue }}</span>
+  <n-card size="small" class="meter-card" :class="{ 'state-error': hasError, 'state-warning': !hasBB && !setup }">
+    <template #header>
+      <div class="card-header">
+        <div class="title-group">
+          <span class="card-title" :title="meter_name">{{ meter_name }}</span>
+          <span class="source-pill" :style="{ '--pill-color': sourceColor }">
+            <n-icon size="14"><component :is="sourceIcon" /></n-icon>
+            <span>{{ sourceLabel }}</span>
+          </span>
         </div>
-        <apexchart
-          type="area"
-          height="40"
-          width="100%"
-          :options="chartOptions"
-          :series="chartSeries"
-        />
+        <div class="header-meta">
+          <span class="timestamp">{{ last_updated_locale }}</span>
+          <n-dropdown :options="menuOptions" @select="handleMenuSelect">
+            <n-button text>
+              <template #icon>
+                <n-icon><MoreVertFilled /></n-icon>
+              </template>
+            </n-button>
+          </n-dropdown>
+        </div>
       </div>
+    </template>
 
-      <n-flex justify="space-between">
-      </n-flex>
-      <template #header-extra>
-        <n-icon :color="sourceColor" style="margin-right: 6px;">
-          <component :is="sourceIcon" />
-        </n-icon>
-        {{ last_updated_locale }}
-        <n-dropdown :options="menuOptions" @select="handleMenuSelect">
-          <n-button text>
-            <template #icon>
-              <n-icon><MoreVertFilled /></n-icon>
-            </template>
-          </n-button>
-        </n-dropdown>
-      </template>
-      <template #action>
-        <n-flex justify="space-between">
-          <router-link v-if="setup" :to="'/setup/'+meter_name"><n-button round>Setup</n-button></router-link>
-          <router-link v-else :to="'/meter/'+meter_name"><n-button round>View</n-button></router-link>
-          <WifiStatus v-if="rssi" :rssi="rssi" />
-        </n-flex>
-      </template>
-    </n-card>
-    <span v-if="hasError" style="color: #d03050; max-width: 300px;">
-      {{ last_error }}
-    </span>
-    <span v-if="!hasBB && !setup" style="color: rgb(240, 138, 0); max-width: 300px;">
-      No bounding box found in the last capture
-    </span>
-  </n-flex>
+    <div class="digits-row" v-if="last_digits">
+      <img
+        v-for="[i, base64] in last_digits.entries()"
+        :key="i + 'c'"
+        class="digit theme-revert"
+        :style="`width:calc(160px / ${last_digits.length});`"
+        :src="'data:image/png;base64,' + base64"
+        :alt="meter_name"
+      />
+      <span class="digit" :style="`width:calc(160px / ${last_digits.length});`"></span>
+    </div>
+
+    <div class="result-row" v-if="last_result && last_digits">
+      <span
+        class="prediction google-sans-code"
+        v-for="[i, digit] in (last_result + '').padStart(last_digits.length, '0').split('').entries()"
+        :key="i + 'd'"
+        :class="{ faded: i > last_digits.length - 4 }"
+      >
+        <template v-if="i === last_digits.length-4">
+          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }},
+        </template>
+        <template v-else>
+          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
+        </template>
+      </span>
+      <span class="unit">m³</span>
+    </div>
+
+    <div v-if="historyData.length > 1" class="sparkline-container">
+      <div class="sparkline-labels">
+        <span>{{ firstValue }}</span>
+        <span>{{ lastValue }}</span>
+      </div>
+      <apexchart
+        type="area"
+        height="42"
+        width="100%"
+        :options="chartOptions"
+        :series="chartSeries"
+      />
+    </div>
+
+    <template #action>
+      <div class="card-footer">
+        <router-link v-if="setup" :to="'/setup/'+meter_name">
+          <n-button round size="small">Setup</n-button>
+        </router-link>
+        <router-link v-else :to="'/meter/'+meter_name">
+          <n-button round size="small">View</n-button>
+        </router-link>
+        <WifiStatus v-if="rssi" :rssi="rssi" />
+      </div>
+    </template>
+  </n-card>
+  <div v-if="hasError" class="card-note error">
+    {{ last_error }}
+  </div>
+  <div v-if="!hasBB && !setup" class="card-note warning">
+    No bounding box found in the last capture
+  </div>
 </template>
 
 <script setup>
@@ -80,7 +92,7 @@ import { MoreVertFilled, HomeOutlined, PublicFilled, WifiTetheringOutlined, Help
 import WifiStatus from "@/components/WifiStatus.vue";
 import { useThemeStore } from '@/stores/themeStore';
 import { storeToRefs } from 'pinia';
-import { getSourceColor, normalizeSourceType } from '@/utils/sourceMeta';
+import { getSourceColor, getSourceLabel, normalizeSourceType } from '@/utils/sourceMeta';
 
 const themeStore = useThemeStore();
 const { isDark } = storeToRefs(themeStore);
@@ -101,6 +113,7 @@ const hasError = computed(() => !!props.last_error);
 const hasBB = computed(() => !!props.has_bbox);
 const sourceType = computed(() => normalizeSourceType(props.source_type));
 const sourceColor = computed(() => getSourceColor(sourceType.value));
+const sourceLabel = computed(() => getSourceLabel(sourceType.value));
 const sourceIcon = computed(() => {
   if (sourceType.value === 'mqtt') return WifiTetheringOutlined;
   if (sourceType.value === 'ha_camera') return HomeOutlined;
@@ -243,6 +256,40 @@ const chartOptions = computed(() => ({
 </script>
 
 <style scoped>
+.meter-card {
+  width: 300px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.light-mode .meter-card {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.state-warning {
+  border-color: rgba(240, 138, 0, 0.4);
+}
+
+.state-error {
+  border-color: rgba(208, 48, 80, 0.5);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .card-title {
   display: block;
   max-width: 180px;
@@ -251,15 +298,69 @@ const chartOptions = computed(() => ({
   white-space: nowrap;
 }
 
-.digit{
-  mix-blend-mode: screen;
-  opacity: 0.4;
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--pill-color);
 }
 
-.prediction{
+.light-mode .source-pill {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timestamp {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.digits-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+
+.digit {
+  margin: 3px;
+  height: 40px;
+  mix-blend-mode: screen;
+  opacity: 0.7;
+  border-radius: 3px;
+}
+
+.result-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-evenly;
+  margin: 4px 0 0 0;
+  gap: 4px;
+}
+
+.prediction {
   width: 16px;
   text-wrap: nowrap;
-  font-size: 1.6em;
+  font-size: 1.4em;
+}
+
+.prediction.faded {
+  color: rgba(255, 154, 154, 0.9);
+}
+
+.unit {
+  font-size: 12px;
+  opacity: 0.6;
 }
 
 .sparkline-container {
@@ -280,11 +381,33 @@ const chartOptions = computed(() => ({
   z-index: 1;
 }
 
-.no-bb {
-  border: 2px solid rgb(240, 138, 0) !important;
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.error-card {
-  border: 2px solid #d03050 !important;
+.card-note {
+  margin-top: 6px;
+  font-size: 12px;
+  max-width: 300px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.light-mode .card-note {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.card-note.error {
+  color: #d03050;
+  border-left: 3px solid #d03050;
+}
+
+.card-note.warning {
+  color: rgb(240, 138, 0);
+  border-left: 3px solid rgb(240, 138, 0);
 }
 </style>

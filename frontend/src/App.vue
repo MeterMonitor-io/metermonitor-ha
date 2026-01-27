@@ -3,26 +3,51 @@
   <n-space vertical size="large">
     <n-layout>
       <n-layout-content content-style="padding: 24px;">
-        <!-- Theme toggle in top-right corner -->
-        <div style="position: fixed; top: 12px; right: 12px; z-index: 1000;">
-          <n-tooltip trigger="hover">
-            <template #trigger>
-              <n-button
-                circle
-                quaternary
-                size="small"
-                @click="cycleTheme"
-              >
-                <template #icon>
-                  <n-icon size="18">
-                    <LightModeOutlined v-if="!isDark" />
-                    <DarkModeOutlined v-else />
-                  </n-icon>
-                </template>
-              </n-button>
-            </template>
-            {{ themeTooltip }}
-          </n-tooltip>
+        <div class="app-header">
+          <div class="header-left">
+            <transition name="back-slide" mode="out-in">
+              <router-link v-if="showBack" to="/" key="back">
+                <n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
+                  ← Back
+                </n-button>
+              </router-link>
+            </transition>
+            <img
+              src="@/assets/logo.png"
+              alt="Logo"
+              class="theme-revert header-logo"
+              :class="{ 'no-back': !showBack }"
+            />
+          </div>
+          <div class="header-right">
+            <n-tooltip trigger="hover">
+              <template #trigger>
+                <n-button
+                  circle
+                  quaternary
+                  size="small"
+                  @click="cycleTheme"
+                >
+                  <template #icon>
+                    <n-icon size="18">
+                      <LightModeOutlined v-if="!isDark" />
+                      <DarkModeOutlined v-else />
+                    </n-icon>
+                  </template>
+                </n-button>
+              </template>
+              {{ themeTooltip }}
+            </n-tooltip>
+            <n-button
+              v-if="headerState.showRefresh"
+              :loading="headerState.refreshLoading"
+              @click="headerState.onRefresh && headerState.onRefresh()"
+              round
+              size="large"
+            >
+              Refresh
+            </n-button>
+          </div>
         </div>
         <router-view></router-view>
       </n-layout-content>
@@ -34,13 +59,34 @@
 <script setup>
 import {NLayout, NLayoutContent, NSpace, NButton, NIcon, NTooltip, useNotification} from 'naive-ui';
 import { LightModeOutlined, DarkModeOutlined } from '@vicons/material';
-import {onMounted, onUnmounted, ref, computed} from "vue";
+import {onMounted, onUnmounted, ref, computed, reactive, provide} from "vue";
+import { useRoute } from 'vue-router';
 import router from "@/router";
 import { useThemeStore } from '@/stores/themeStore';
 import { storeToRefs } from 'pinia';
+import { headerControlsKey } from '@/composables/headerControls';
 
 const themeStore = useThemeStore();
 const { isDark, themeMode, isHomeAssistant } = storeToRefs(themeStore);
+const route = useRoute();
+
+const headerState = reactive({
+  showRefresh: false,
+  refreshLoading: false,
+  onRefresh: null
+});
+
+const setHeader = (next) => {
+  Object.assign(headerState, next);
+};
+
+const resetHeader = () => {
+  headerState.showRefresh = false;
+  headerState.refreshLoading = false;
+  headerState.onRefresh = null;
+};
+
+provide(headerControlsKey, { headerState, setHeader, resetHeader });
 
 const themeTooltip = computed(() => {
   if (themeMode.value === 'auto') {
@@ -58,6 +104,8 @@ const cycleTheme = () => {
   const nextIndex = (currentIndex + 1) % modes.length;
   themeStore.setThemeMode(modes[nextIndex]);
 };
+
+const showBack = computed(() => route.path !== '/');
 
 const alerts = ref([]);
 
@@ -113,5 +161,47 @@ onUnmounted(() => {
 .light-mode .theme-revert {
   mix-blend-mode: multiply;
   filter: invert(1);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-logo {
+  max-width: 100px;
+  margin-left: 20px;
+  transition: margin-left 0.2s ease;
+}
+
+.header-logo.no-back {
+  margin-left: 0;
+}
+
+.back-slide-enter-active,
+.back-slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.back-slide-enter-from {
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.back-slide-leave-to {
+  opacity: 0;
+  transform: translateX(-8px);
 }
 </style>

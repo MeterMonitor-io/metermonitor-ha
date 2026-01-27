@@ -1,16 +1,4 @@
 <template>
-  <n-flex>
-    <router-link to="/">
-      <n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
-        ← Back
-      </n-button>
-    </router-link>
-    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;" class="theme-revert"/>
-    <n-button :loading="loading" @click="loadMeter" round size="large" style="margin-left: 20px;">
-      Refresh
-    </n-button>
-  </n-flex>
-  <br />
   <template v-if="isMobile">
     <n-tabs type="line" animated>
       <n-tab-pane name="details" tab="Details">
@@ -39,39 +27,42 @@
   </template>
 
   <template v-else>
-    <n-grid cols="12">
-      <n-gi span="2" >
-        <MeterDetails
-          :data="data"
-          :settings="settings"
-          :id="id"
-          :downloadingDataset="downloadingDataset"
-          :history="history"
-          @resetToSetup="resetToSetup"
-          @triggerCapture="triggerCapture"
-          @deleteMeter="deleteMeter"
-          @clearEvaluations="clearEvaluations"
-          @downloadDataset="downloadDataset"
-          @deleteDataset="deleteDataset"
-        />
-      </n-gi>
-      <n-gi span="7" style="padding-left: 20px; padding-right: 10px;" v-if="evaluations !== null">
+    <div class="meter-layout">
+      <aside class="meter-sidebar">
+        <div class="sidebar-content">
+          <MeterDetails
+            :data="data"
+            :settings="settings"
+            :id="id"
+            :downloadingDataset="downloadingDataset"
+            :history="history"
+            @resetToSetup="resetToSetup"
+            @triggerCapture="triggerCapture"
+            @deleteMeter="deleteMeter"
+            @clearEvaluations="clearEvaluations"
+            @downloadDataset="downloadDataset"
+            @deleteDataset="deleteDataset"
+          />
+        </div>
+      </aside>
+      <main class="meter-content" v-if="evaluations !== null">
         <EvaluationResultList :evaluations="evaluations" :name="id" @load-more="loadMoreEvaluations" @dataset-uploaded="loadMeter"/>
-      </n-gi>
-    </n-grid>
+      </main>
+    </div>
   </template>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import router from '@/router';
 import EvaluationResultList from "@/components/EvaluationResultList.vue";
 import MeterDetails from "@/components/MeterDetails.vue";
 import MeterCharts from "@/components/MeterCharts.vue";
-import {NFlex, NButton, NGrid, NGi, NTabs, NTabPane, useMessage} from "naive-ui";
+import { NTabs, NTabPane, useMessage } from "naive-ui";
 import { useWatermeterStore } from '@/stores/watermeterStore';
 import { storeToRefs } from 'pinia';
+import { useHeaderControls } from '@/composables/headerControls';
 
 const route = useRoute();
 const id = route.params.id;
@@ -81,6 +72,7 @@ const { lastPicture: data, evaluations, history, settings } = storeToRefs(store)
 const loading = ref(false);
 const downloadingDataset = ref(false);
 const isMobile = ref(window.innerWidth < 1000);
+const headerControls = useHeaderControls();
 
 const updateWidth = () => {
   isMobile.value = window.innerWidth < 800;
@@ -89,10 +81,25 @@ const updateWidth = () => {
 onMounted(() => {
   window.addEventListener('resize', updateWidth);
   loadMeter();
+  if (headerControls) {
+    headerControls.setHeader({
+      showRefresh: true,
+      onRefresh: loadMeter,
+      refreshLoading: loading.value
+    });
+  }
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', updateWidth);
+  if (headerControls) {
+    headerControls.resetHeader();
+  }
+});
+
+watch(loading, (next) => {
+  if (!headerControls) return;
+  headerControls.setHeader({ refreshLoading: next });
 });
 
 const host = import.meta.env.VITE_HOST;
@@ -243,10 +250,36 @@ const clearEvaluations = async () => {
 </script>
 
 <style scoped>
-.bg {
-  background-color: rgba(240, 240, 240, 0.1);
-  padding: 20px;
-  border-radius: 15px;
-  margin-bottom: 15px;
+.meter-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.meter-sidebar {
+  width: 360px;
+  flex: 0 0 360px;
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-content {
+  width: 100%;
+}
+
+.meter-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.light-mode .meter-sidebar {
+  background: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 </style>

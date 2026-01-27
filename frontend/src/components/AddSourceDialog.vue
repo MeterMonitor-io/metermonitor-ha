@@ -1,5 +1,5 @@
 <template>
-  <n-modal v-model:show="show" preset="card" title="Add source" style="max-width: 860px;" :mask-closable="!saving && !testing" :closable="!testing">
+  <n-modal v-model:show="show" preset="card" title="Add watermeter" style="max-width: 860px;" :mask-closable="!saving && !testing" :closable="!testing">
     <n-space vertical size="large">
 
       <n-form :model="form" :disabled="saving || testing" label-placement="top">

@@ -1,13 +1,6 @@
 <template>
 
-  <n-flex>
-    <router-link to="/"><n-button quaternary round size="large" style="padding: 0; font-size: 16px;">
-       ← Back
-    </n-button></router-link>
-    <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px; margin-left: 20px;" class="theme-revert"/>
-    <n-button :loading="loading" @click="() => setupStore.getData(id)" round size="large" style="margin-left: 20px;">Refresh</n-button>
-  </n-flex>
-    <n-h2>Setup for {{ id }}</n-h2>
+  <n-h2>Setup for {{ id }}</n-h2>
   <n-steps :current="currentlyFocusedStep" :vertical="narrowScreen">
     <n-step
       title="Segmentation"
@@ -135,13 +128,14 @@
 </template>
 
 <script setup>
-import {onMounted, computed, ref} from 'vue';
-import { NSteps, NStep, NButton, NFlex, NH2, NTooltip, NIcon } from 'naive-ui';
+import {onMounted, onUnmounted, computed, ref, watch} from 'vue';
+import { NSteps, NStep, NButton, NH2, NTooltip, NIcon } from 'naive-ui';
 import { HelpOutlineFilled } from '@vicons/material';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useWatermeterStore } from '@/stores/watermeterStore';
 import { useSetupStore } from '@/stores/setupStore';
+import { useHeaderControls } from '@/composables/headerControls';
 import SegmentationConfigurator from "@/components/SegmentationConfigurator.vue";
 import ThresholdPicker from "@/components/ThresholdPicker.vue";
 import EvaluationConfigurator from "@/components/EvaluationConfigurator.vue";
@@ -152,6 +146,7 @@ const id = route.params.id;
 // Initialize stores
 const watermeterStore = useWatermeterStore();
 const setupStore = useSetupStore();
+const headerControls = useHeaderControls();
 
 const narrowScreen = computed(() => window.innerWidth < 1500);
 
@@ -188,6 +183,24 @@ const onSegmentationNext = () => {
 onMounted(() => {
   setupStore.reset();
   setupStore.getData(id);
+  if (headerControls) {
+    headerControls.setHeader({
+      showRefresh: true,
+      onRefresh: () => setupStore.getData(id),
+      refreshLoading: loading.value
+    });
+  }
+});
+
+onUnmounted(() => {
+  if (headerControls) {
+    headerControls.resetHeader();
+  }
+});
+
+watch(loading, (next) => {
+  if (!headerControls) return;
+  headerControls.setHeader({ refreshLoading: next });
 });
 </script>
 

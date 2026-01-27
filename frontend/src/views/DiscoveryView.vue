@@ -1,36 +1,36 @@
 <template>
-  <n-flex align="center">
-    <n-flex align="center">
-      <img src="@/assets/logo.png" alt="Logo" style="max-width: 100px" class="theme-revert"/>
-      <n-button :loading="loading" @click="getData" round size="large">Refresh</n-button>
-    </n-flex>
-
-    <n-button type="primary" round @click="showAddSource = true">
-      Add source
-    </n-button>
-  </n-flex>
-
   <AddSourceDialog v-model:show="showAddSource" @created="getData" />
 
-  <template v-if="discoveredMeters.length === 0 && waterMeters.length === 0 && config">
-    <n-h2>Welcome to MeterMonitor!</n-h2>
+  <div v-if="discoveredMeters.length === 0 && waterMeters.length === 0 && config">
     <n-space vertical size="large">
-      <div>
-        If you use MQTT, devices will appear automatically once they publish images.<br>
-        You can also add a Home Assistant camera source via the button above.
-      </div>
       <n-flex>
-        <n-button quaternary type="info">
-          <a href="https://esphome.io/components/camera/esp32_camera.html" target="_blank" rel="noreferrer" style="text-decoration: none; color: inherit;">
-            ESPHome ESP32-CAM setup guide
-          </a>
-        </n-button>
+        <div>
+          <br>
+          <n-h2>Welcome to MeterMonitor!</n-h2>
+          <div>
+            If you use MQTT, devices will appear automatically once they publish images.<br>
+            You can also add a Home Assistant camera source via the button above.
+          </div>
+          <n-flex>
+            <n-button quaternary type="info">
+              <a href="https://esphome.io/components/camera/esp32_camera.html" target="_blank" rel="noreferrer" style="text-decoration: none; color: inherit;">
+                ESPHome ESP32-CAM setup guide
+              </a>
+            </n-button>
 
-        <n-button quaternary type="info">
-          <a href="https://github.com/phiph-s/metermonitor-managementserver/" target="_blank" rel="noreferrer" style="text-decoration: none; color: inherit;">
-            GitHub Documentation
-          </a>
-        </n-button>
+            <n-button quaternary type="info">
+              <a href="https://github.com/phiph-s/metermonitor-managementserver/" target="_blank" rel="noreferrer" style="text-decoration: none; color: inherit;">
+                GitHub Documentation
+              </a>
+            </n-button>
+          </n-flex>
+        </div>
+        <div class="add-card" @click="showAddSource = true" style="margin-left: 20px;">
+          <div class="add-card-inner">
+            <n-icon><AddOutlined /></n-icon>
+            <span>Add source</span>
+          </div>
+        </div>
       </n-flex>
       <n-divider />
       <div>
@@ -58,11 +58,15 @@
         Topic: <span class="code-inline">{{ config?.mqtt?.topic }}</span>
       </div>
     </n-space>
-  </template>
+  </div>
 
   <template v-if="discoveredMeters.length > 0">
-    <n-h2>Waiting for setup</n-h2>
-    <n-flex>
+    <div class="elevated-list">
+      <div class="elevated-title">
+        <n-icon><PendingActionsOutlined /></n-icon>
+        <span>Waiting for setup</span>
+      </div>
+      <n-flex>
         <WaterMeterCard
           v-for="item in discoveredMeters"
           :key="item.id"
@@ -73,36 +77,45 @@
           source_type="mqtt"
           @removed="getData"
         />
-    </n-flex>
+      </n-flex>
+    </div>
   </template>
 
   <template v-if="waterMeters.length > 0">
-    <n-h2>Watermeters</n-h2>
-    <n-flex>
-        <WaterMeterCard
-            v-for="item in waterMeters"
-            :key="item.id"
-            :last_updated="item[1]"
-            :meter_name="item[0]"
-            :setup="false"
-            :rssi="item[2]"
-            :last_digits="item[4]"
-            :last_result="item[3]"
-            :has_bbox="item[5]"
-            :last_error="item[6]"
-            :source_type="item[7]"
-            @removed="getData"
-        />
+    <n-flex class="watermeters-row">
+      <WaterMeterCard
+          v-for="item in waterMeters"
+          :key="item.id"
+          :last_updated="item[1]"
+          :meter_name="item[0]"
+          :setup="false"
+          :rssi="item[2]"
+          :last_digits="item[4]"
+          :last_result="item[3]"
+          :has_bbox="item[5]"
+          :last_error="item[6]"
+          :source_type="item[7]"
+          @removed="getData"
+      />
+      <div class="add-card" @click="showAddSource = true">
+        <div class="add-card-inner">
+          <n-icon><AddOutlined /></n-icon>
+          <span>Add source</span>
+        </div>
+      </div>
     </n-flex>
   </template>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
-import { NH2, NFlex, NButton, NDivider, NCard, NSpace } from 'naive-ui';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { NH2, NFlex, NButton, NDivider, NCard, NSpace, NIcon } from 'naive-ui';
 import router from "@/router";
 import WaterMeterCard from "@/components/WaterMeterCard.vue";
 import AddSourceDialog from "@/components/AddSourceDialog.vue";
+import { useHeaderControls } from '@/composables/headerControls';
+import { PendingActionsOutlined } from '@vicons/material';
+import { AddOutlined } from '@vicons/material';
 
 const discoveredMeters = ref([]);
 const waterMeters = ref([]);
@@ -110,6 +123,7 @@ const sources = ref([]);
 const loading = ref(false);
 const config = ref(null);
 const showAddSource = ref(false);
+const headerControls = useHeaderControls();
 
 const host = import.meta.env.VITE_HOST;
 
@@ -160,11 +174,91 @@ const getData = async () => {
 
 onMounted(() => {
   getData();
+  if (headerControls) {
+    headerControls.setHeader({
+      showRefresh: true,
+      onRefresh: getData,
+      refreshLoading: loading.value
+    });
+  }
+});
+
+onUnmounted(() => {
+  if (headerControls) {
+    headerControls.resetHeader();
+  }
+});
+
+watch(loading, (next) => {
+  if (!headerControls) return;
+  headerControls.setHeader({ refreshLoading: next });
 });
 
 </script>
 
 <style scoped>
+.elevated-list {
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.light-mode .elevated-list {
+  background: rgba(0, 0, 0, 0.04);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+.elevated-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.watermeters-row {
+  margin-top: 18px;
+}
+
+.add-card {
+  width: 300px;
+  min-height: 180px;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.add-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.light-mode .add-card {
+  border-color: rgba(0, 0, 0, 0.2);
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.light-mode .add-card:hover {
+  border-color: rgba(0, 0, 0, 0.4);
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.add-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
 .code{
   font-family: monospace, monospace;
   background-color: rgba(255,255,255,0.1)
