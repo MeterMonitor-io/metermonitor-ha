@@ -10,8 +10,8 @@
     "dbfile": "/data/watermeters.sqlite",
     "homeassistant": {
       "use_supervisor_token": true,
-      "url": null,
-      "token": null,
+      "url": "http://supervisor/core",
+      "token": "",
       "request_timeout_s": 10
     }
   }

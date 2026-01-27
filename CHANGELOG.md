@@ -1,4 +1,4 @@
-v3.0.0-beta - 27.01.2026
+v3.0.1-beta - 27.01.2026
 - Implemented concept of image sources: MQTT, Home Assistant Camera (not yet implemented: HTTP)
 - Added polling service for Home Assistant camera sources with configurable intervals
 - Added source management UI: create, edit, and delete sources (MQTT, HA Camera, HTTP)
