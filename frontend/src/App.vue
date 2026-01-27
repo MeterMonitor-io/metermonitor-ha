@@ -186,6 +186,10 @@ onUnmounted(() => {
   transition: margin-left 0.2s ease;
 }
 
+.n-dialog{
+  border-radius: 12px;
+}
+
 .header-logo.no-back {
   margin-left: 0;
 }

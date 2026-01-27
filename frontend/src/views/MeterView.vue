@@ -6,6 +6,7 @@
           :data="data"
           :settings="settings"
           :id="id"
+          :history="history"
           :downloadingDataset="downloadingDataset"
           @resetToSetup="resetToSetup"
           @triggerCapture="triggerCapture"
@@ -19,9 +20,6 @@
         <div style="padding-left: 10px; padding-right: 10px;" v-if="evaluations !== null">
           <EvaluationResultList :evaluations="evaluations" :name="id" @load-more="loadMoreEvaluations" @dataset-uploaded="loadMeter"/>
         </div>
-      </n-tab-pane>
-      <n-tab-pane name="charts" tab="Charts">
-        <MeterCharts :history="history" />
       </n-tab-pane>
     </n-tabs>
   </template>
@@ -254,12 +252,13 @@ const clearEvaluations = async () => {
   display: flex;
   gap: 24px;
   align-items: flex-start;
+  min-height: calc(100vh - 140px);
 }
 
 .meter-sidebar {
-  width: 360px;
-  flex: 0 0 360px;
-  min-width: 360px;
+  width: 380px;
+  flex: 0 0 380px;
+  min-width: 380px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -276,6 +275,7 @@ const clearEvaluations = async () => {
 .meter-content {
   flex: 1;
   min-width: 0;
+  height: calc(100vh - 104px);
 }
 
 .light-mode .meter-sidebar {

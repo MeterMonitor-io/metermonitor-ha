@@ -74,12 +74,14 @@
           :meter_name="item[0]"
           :setup="true"
           :rssi="item[2]"
-          source_type="mqtt"
+          :source_type="item[3]"
           @removed="getData"
         />
       </n-flex>
     </div>
   </template>
+
+  <n-h2 v-if="waterMeters.length > 0">Watermeters</n-h2>
 
   <template v-if="waterMeters.length > 0">
     <n-flex class="watermeters-row">

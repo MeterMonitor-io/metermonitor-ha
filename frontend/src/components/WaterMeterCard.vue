@@ -1,88 +1,90 @@
 <template>
-  <n-card size="small" class="meter-card" :class="{ 'state-error': hasError, 'state-warning': !hasBB && !setup }">
-    <template #header>
-      <div class="card-header">
-        <div class="title-group">
-          <span class="card-title" :title="meter_name">{{ meter_name }}</span>
-          <span class="source-pill" :style="{ '--pill-color': sourceColor }">
-            <n-icon size="14"><component :is="sourceIcon" /></n-icon>
-            <span>{{ sourceLabel }}</span>
-          </span>
+  <n-flex vertical>
+    <n-card size="small" class="meter-card" :class="{ 'state-error': hasError, 'state-warning': !hasBB && !setup }">
+      <template #header>
+        <div class="card-header">
+          <div class="title-group">
+            <span class="card-title" :title="meter_name">{{ meter_name }}</span>
+            <span class="source-pill" :style="{ '--pill-color': sourceColor }">
+              <n-icon size="14"><component :is="sourceIcon" /></n-icon>
+              <span>{{ sourceLabel }}</span>
+            </span>
+          </div>
+          <div class="header-meta">
+            <span class="timestamp">{{ last_updated_locale }}</span>
+            <n-dropdown :options="menuOptions" @select="handleMenuSelect">
+              <n-button text>
+                <template #icon>
+                  <n-icon><MoreVertFilled /></n-icon>
+                </template>
+              </n-button>
+            </n-dropdown>
+          </div>
         </div>
-        <div class="header-meta">
-          <span class="timestamp">{{ last_updated_locale }}</span>
-          <n-dropdown :options="menuOptions" @select="handleMenuSelect">
-            <n-button text>
-              <template #icon>
-                <n-icon><MoreVertFilled /></n-icon>
-              </template>
-            </n-button>
-          </n-dropdown>
+      </template>
+
+      <div class="digits-row" v-if="last_digits">
+        <img
+          v-for="[i, base64] in last_digits.entries()"
+          :key="i + 'c'"
+          class="digit theme-revert"
+          :style="`width:calc(160px / ${last_digits.length});`"
+          :src="'data:image/png;base64,' + base64"
+          :alt="meter_name"
+        />
+        <span class="digit" :style="`width:calc(160px / ${last_digits.length});`"></span>
+      </div>
+
+      <div class="result-row" v-if="last_result && last_digits">
+        <span
+          class="prediction google-sans-code"
+          v-for="[i, digit] in (last_result + '').padStart(last_digits.length, '0').split('').entries()"
+          :key="i + 'd'"
+          :class="{ faded: i > last_digits.length - 4 }"
+        >
+          <template v-if="i === last_digits.length-4">
+            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }},
+          </template>
+          <template v-else>
+            {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
+          </template>
+        </span>
+        <span class="unit">m³</span>
+      </div>
+
+      <div v-if="historyData.length > 1" class="sparkline-container">
+        <div class="sparkline-labels">
+          <span>{{ firstValue }}</span>
+          <span>{{ lastValue }}</span>
         </div>
+        <apexchart
+          type="area"
+          height="42"
+          width="100%"
+          :options="chartOptions"
+          :series="chartSeries"
+        />
       </div>
-    </template>
 
-    <div class="digits-row" v-if="last_digits">
-      <img
-        v-for="[i, base64] in last_digits.entries()"
-        :key="i + 'c'"
-        class="digit theme-revert"
-        :style="`width:calc(160px / ${last_digits.length});`"
-        :src="'data:image/png;base64,' + base64"
-        :alt="meter_name"
-      />
-      <span class="digit" :style="`width:calc(160px / ${last_digits.length});`"></span>
+      <template #action>
+        <div class="card-footer">
+          <router-link v-if="setup" :to="'/setup/'+meter_name">
+            <n-button round size="small">Setup</n-button>
+          </router-link>
+          <router-link v-else :to="'/meter/'+meter_name">
+            <n-button round size="small">View</n-button>
+          </router-link>
+          <WifiStatus v-if="rssi" :rssi="rssi" />
+        </div>
+      </template>
+    </n-card>
+    <div v-if="hasError" class="card-note error">
+      {{ last_error }}
     </div>
-
-    <div class="result-row" v-if="last_result && last_digits">
-      <span
-        class="prediction google-sans-code"
-        v-for="[i, digit] in (last_result + '').padStart(last_digits.length, '0').split('').entries()"
-        :key="i + 'd'"
-        :class="{ faded: i > last_digits.length - 4 }"
-      >
-        <template v-if="i === last_digits.length-4">
-          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }},
-        </template>
-        <template v-else>
-          {{ (digit[0][0]==='r')? '↕' : digit[0][0] }}
-        </template>
-      </span>
-      <span class="unit">m³</span>
+    <div v-if="!hasBB && !setup" class="card-note warning">
+      No bounding box found in the last capture
     </div>
-
-    <div v-if="historyData.length > 1" class="sparkline-container">
-      <div class="sparkline-labels">
-        <span>{{ firstValue }}</span>
-        <span>{{ lastValue }}</span>
-      </div>
-      <apexchart
-        type="area"
-        height="42"
-        width="100%"
-        :options="chartOptions"
-        :series="chartSeries"
-      />
-    </div>
-
-    <template #action>
-      <div class="card-footer">
-        <router-link v-if="setup" :to="'/setup/'+meter_name">
-          <n-button round size="small">Setup</n-button>
-        </router-link>
-        <router-link v-else :to="'/meter/'+meter_name">
-          <n-button round size="small">View</n-button>
-        </router-link>
-        <WifiStatus v-if="rssi" :rssi="rssi" />
-      </div>
-    </template>
-  </n-card>
-  <div v-if="hasError" class="card-note error">
-    {{ last_error }}
-  </div>
-  <div v-if="!hasBB && !setup" class="card-note warning">
-    No bounding box found in the last capture
-  </div>
+  </n-flex>
 </template>
 
 <script setup>

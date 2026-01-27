@@ -8,24 +8,25 @@
       @click="() => {if (currentlyFocusedStep !== 1 && currentStep > 0) {currentlyFocusedStep = 1;}}"
     >
       <div v-if="(narrowScreen && currentlyFocusedStep === 1) || (!narrowScreen)">
-        <SegmentationConfigurator
-            :last-picture="lastPicture"
-            :extended-last-digit="extendedLastDigit"
-            :last-3-digits-narrow="last3DigitsNarrow"
-            :segments="segments"
-            :rotated180="rotated180"
-            :evaluation="evaluation"
-            :timestamp="lastPicture ? lastPicture.picture.timestamp : ''"
-            :loading="loading"
-            :no-bounding-box="noBoundingBox"
-            @update="(newSettings) => setupStore.updateSegmentationSettings(newSettings, id)"
-            @next="onSegmentationNext"
-            @click="(e) => e.stopPropagation()"
-        />
+        <div @click.stop>
+          <SegmentationConfigurator
+              :last-picture="lastPicture"
+              :extended-last-digit="extendedLastDigit"
+              :last-3-digits-narrow="last3DigitsNarrow"
+              :segments="segments"
+              :rotated180="rotated180"
+              :evaluation="evaluation"
+              :timestamp="lastPicture ? lastPicture.picture.timestamp : ''"
+              :loading="loading"
+              :no-bounding-box="noBoundingBox"
+              @update="(newSettings) => setupStore.updateSegmentationSettings(newSettings, id)"
+              @next="onSegmentationNext"
+          />
+        </div>
         <br>
         <n-tooltip trigger="hover" placement="bottom">
           <template #trigger>
-            <n-button circle type="info" ghost quaternary>
+            <n-button circle type="info" ghost>
               <template #icon>
                 <n-icon><HelpOutlineFilled /></n-icon>
               </template>
@@ -47,25 +48,26 @@
       @click="() => {if (currentlyFocusedStep !== 2  && currentStep > 1) {currentlyFocusedStep = 2;}}"
     >
       <div v-if="(narrowScreen && currentlyFocusedStep === 2) || (!narrowScreen && currentStep > 1)">
-        <ThresholdPicker
-            :evaluation="evaluation"
-            :run="tresholdedImages[tresholdedImages.length-1]"
-            :threshold="threshold"
-            :threshold_last="thresholdLast"
-            :islanding_padding="islandingPadding"
-            :loading="loading"
-            :searching-thresholds="searchingThresholds"
-            :threshold-search-result="thresholdSearchResult"
-            @update="(data) => setupStore.updateThresholds(data, id)"
-            @reevaluate="() => setupStore.redoDigitEval(id) && setupStore.clearEvaluationExamples(id)"
-            @next="() =>  {setupStore.nextStep(2); currentlyFocusedStep = 3}"
-            @search-thresholds="(steps) => setupStore.searchThresholds(id, steps)"
-            @click="(e) => e.stopPropagation()"
-        />
+        <div @click.stop>
+          <ThresholdPicker
+              :evaluation="evaluation"
+              :run="tresholdedImages[tresholdedImages.length-1]"
+              :threshold="threshold"
+              :threshold_last="thresholdLast"
+              :islanding_padding="islandingPadding"
+              :loading="loading"
+              :searching-thresholds="searchingThresholds"
+              :threshold-search-result="thresholdSearchResult"
+              @update="(data) => setupStore.updateThresholds(data, id)"
+              @reevaluate="() => setupStore.redoDigitEval(id) && setupStore.clearEvaluationExamples(id)"
+              @next="() =>  {setupStore.nextStep(2); currentlyFocusedStep = 3}"
+              @search-thresholds="(steps) => setupStore.searchThresholds(id, steps)"
+          />
+        </div>
         <br>
         <n-tooltip trigger="hover" placement="bottom">
           <template #trigger>
-            <n-button circle type="info" ghost quaternary>
+            <n-button circle type="info" ghost>
               <template #icon>
                 <n-icon><HelpOutlineFilled /></n-icon>
               </template>
@@ -90,24 +92,25 @@
       @click="() => {if (currentlyFocusedStep !== 3 && currentStep > 2) {currentlyFocusedStep = 3;}}"
     >
       <div v-if="(narrowScreen && currentlyFocusedStep === 3) || (!narrowScreen && currentStep > 2)">
-        <EvaluationConfigurator
-            :evaluation="evaluation"
-            :max-flow-rate="maxFlowRate" :loading="loading"
-            @updateMaxFlow="(data) => setupStore.updateMaxFlow(data, id)"
-            @updateConfThreshold="(data) => setupStore.updateConfThreshold(data, id)"
-            @set-loading="setupStore.setLoading"
-            @request-random-example="() => setupStore.requestReevaluatedDigits(id)"
-            @clear-evaluations="() => setupStore.clearEvaluationExamples()"
-            :meterid="id"
-            :confidence-threshold="confThreshold"
-            :timestamp="lastPicture.picture.timestamp"
-            :randomExamples="randomExamples"
-            @click="(e) => e.stopPropagation()"
-        />
+        <div @click.stop>
+          <EvaluationConfigurator
+              :evaluation="evaluation"
+              :max-flow-rate="maxFlowRate" :loading="loading"
+              @updateMaxFlow="(data) => setupStore.updateMaxFlow(data, id)"
+              @updateConfThreshold="(data) => setupStore.updateConfThreshold(data, id)"
+              @set-loading="setupStore.setLoading"
+              @request-random-example="() => setupStore.requestReevaluatedDigits(id)"
+              @clear-evaluations="() => setupStore.clearEvaluationExamples()"
+              :meterid="id"
+              :confidence-threshold="confThreshold"
+              :timestamp="lastPicture.picture.timestamp"
+              :randomExamples="randomExamples"
+          />
+        </div>
          <br>
         <n-tooltip trigger="hover" placement="bottom">
           <template #trigger>
-            <n-button circle type="info" ghost quaternary>
+            <n-button circle type="info" ghost>
               <template #icon>
                 <n-icon><HelpOutlineFilled /></n-icon>
               </template>

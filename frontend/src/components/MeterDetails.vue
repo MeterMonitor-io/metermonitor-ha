@@ -228,7 +228,7 @@ const props = defineProps({
   settings: Object,
   id: String,
   downloadingDataset: Boolean,
-  history: Array
+  history: Object
 });
 
 const store = useWatermeterStore();

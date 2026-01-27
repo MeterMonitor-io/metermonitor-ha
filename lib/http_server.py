@@ -695,7 +695,8 @@ def prepare_setup_app(config, lifespan):
     @app.get("/api/discovery", dependencies=[Depends(authenticate)])
     def get_discovery():
         cursor = db_connection().cursor()
-        cursor.execute("SELECT name, picture_timestamp, wifi_rssi FROM watermeters WHERE setup = 0")
+        cursor.execute("SELECT name, picture_timestamp, wifi_rssi, (SELECT source_type FROM sources WHERE name = watermeters.name LIMIT 1)"
+                       " FROM watermeters WHERE setup = 0")
         return {"watermeters": [row for row in cursor.fetchall()]}
 
     @app.post("/api/dataset/upload", dependencies=[Depends(authenticate)])
@@ -1183,6 +1184,21 @@ def prepare_setup_app(config, lifespan):
             "timestamp_adjusted": row[22]
         } for row in cursor.fetchall()]}
 
+    @app.get("/api/watermeters/{name}/evals/count", dependencies=[Depends(authenticate)])
+    def get_evals_count(name: str):
+        """Get the number of evaluations for a watermeter."""
+        cursor = db_connection().cursor()
+
+        # Check if watermeter exists
+        cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Watermeter not found")
+
+        cursor.execute("SELECT COUNT(*) FROM evaluations WHERE name = ?", (name,))
+        count = cursor.fetchone()[0]
+
+        return {"count": count}
+
     @app.get("/api/watermeters/{name}/evals/{eval_id}", dependencies=[Depends(authenticate)])
     def get_eval_by_id(name: str, eval_id: int):
         """Get a single evaluation by ID."""
@@ -1273,21 +1289,6 @@ def prepare_setup_app(config, lifespan):
 
         print(f"[HTTP] Deleted {count} evaluations for watermeter {name}")
         return {"message": f"Deleted {count} evaluations", "count": count}
-
-    @app.get("/api/watermeters/{name}/evals/count", dependencies=[Depends(authenticate)])
-    def get_evals_count(name: str):
-        """Get the number of evaluations for a watermeter."""
-        cursor = db_connection().cursor()
-
-        # Check if watermeter exists
-        cursor.execute("SELECT name FROM watermeters WHERE name = ?", (name,))
-        if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Watermeter not found")
-
-        cursor.execute("SELECT COUNT(*) FROM evaluations WHERE name = ?", (name,))
-        count = cursor.fetchone()[0]
-
-        return {"count": count}
 
     # POST endpoint for adding an evaluation
     @app.post("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])
