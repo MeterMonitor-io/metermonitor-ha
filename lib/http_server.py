@@ -483,36 +483,43 @@ def prepare_setup_app(config, lifespan):
 
     @app.get('/api/ha/cameras', dependencies=[Depends(authenticate)])
     def ha_cameras():
-        states = _ha_request_json('/api/states')
+        try:
+            states = _ha_request_json('/api/states')
 
-        cams = []
-        if isinstance(states, list):
-            for st in states:
-                ent_id = st.get('entity_id')
-                if not isinstance(ent_id, str) or not ent_id.startswith('camera.'):
-                    continue
+            cams = []
+            if isinstance(states, list):
+                for st in states:
+                    ent_id = st.get('entity_id')
+                    if not isinstance(ent_id, str) or not ent_id.startswith('camera.'):
+                        continue
 
-                attrs = st.get('attributes') or {}
+                    attrs = st.get('attributes') or {}
 
-                try:
-                    suggested = suggest_flash_entity(
-                        ha_base_url=_get_ha_base_url(),  # z.B. http://homeassistant.local:8123
-                        ha_token=_get_ha_token(),  # Long-lived access token
-                        camera_entity_id=ent_id,
-                        states=states
-                    )
-                except Exception as e:
-                    print(f"[FLASH-SUGGEST] error for {ent_id}: {e}")
-                    suggested = None
+                    try:
+                        suggested = suggest_flash_entity(
+                            ha_base_url=_get_ha_base_url(),  # z.B. http://homeassistant.local:8123
+                            ha_token=_get_ha_token(),  # Long-lived access token
+                            camera_entity_id=ent_id,
+                            states=states
+                        )
+                    except Exception as e:
+                        print(f"[FLASH-SUGGEST] error for {ent_id}: {e}")
+                        suggested = None
 
-                cams.append({
-                    'entity_id': ent_id,
-                    'name': attrs.get('friendly_name') or ent_id,
-                    'suggested_flash_entity_id': suggested
-                })
+                    cams.append({
+                        'entity_id': ent_id,
+                        'name': attrs.get('friendly_name') or ent_id,
+                        'suggested_flash_entity_id': suggested
+                    })
 
-        cams.sort(key=lambda x: x['entity_id'])
-        return {'cameras': cams}
+            cams.sort(key=lambda x: x['entity_id'])
+            return {'cameras': cams}
+        except:
+            # print stack trace for debug logging
+            import traceback
+            traceback.print_exc()
+
+            raise HTTPException(status_code=500, detail="Failed to fetch cameras from Home Assistant")
 
     class HaServiceCall(BaseModel):
         domain: str

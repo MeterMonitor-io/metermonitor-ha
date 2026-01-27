@@ -99,6 +99,9 @@ export const useWatermeterStore = defineStore('watermeter', () => {
     const data = await apiService.getJson('api/sources');
     const meterSource = data.sources.find(s => s.name === meterId);
     source.value = meterSource || null;
+
+    console.log("Fetched source:", meterSource);
+
     return meterSource;
   };
 
