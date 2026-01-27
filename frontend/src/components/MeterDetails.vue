@@ -12,12 +12,22 @@
       </template>
     </n-card>
     <br>
-    <WifiStatus v-if="data" :rssi="data['WiFi-RSSI']" />
+    <WifiStatus v-if="data && data['WiFi-RSSI']" :rssi="data['WiFi-RSSI']" />
     <br><br>
     <n-flex>
+
+      <n-popconfirm @positive-click="emit('triggerCapture')" v-if="store.source?.source_type !== 'mqtt'">
+        <template #trigger>
+          <n-button type="success" round style="width: 22%" :disabled="store.capturing" :loading="store.capturing">
+            Capture
+          </n-button>
+        </template>
+        This will trigger a new picture capture on the source. Are you sure?
+      </n-popconfirm>
+
       <n-popconfirm @positive-click="emit('resetToSetup')">
         <template #trigger>
-          <n-button type="info" round style="width: 30%">
+          <n-button type="info" round style="width: 22%">
             Setup
           </n-button>
         </template>
@@ -26,7 +36,7 @@
 
       <n-popconfirm @positive-click="emit('clearEvaluations')">
         <template #trigger>
-          <n-button type="warning" ghost round style="width: 30%">
+          <n-button type="warning" ghost round style="width: 23%">
             Clear Evals
           </n-button>
         </template>
@@ -35,7 +45,7 @@
 
       <n-popconfirm @positive-click="emit('deleteMeter')">
         <template #trigger>
-          <n-button type="error" ghost round style="width: 30%">
+          <n-button type="error" ghost round style="width: 23%">
             Delete
           </n-button>
         </template>
@@ -88,6 +98,7 @@ import { defineProps, defineEmits, computed } from 'vue';
 import { NCard, NFlex, NButton, NPopconfirm, NList, NListItem, NThing, NIcon } from "naive-ui";
 import { DeleteForeverFilled } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
+import {useWatermeterStore} from "@/stores/watermeterStore";
 
 const props = defineProps({
   data: Object,
@@ -96,7 +107,8 @@ const props = defineProps({
   downloadingDataset: Boolean
 });
 
-const emit = defineEmits(['resetToSetup', 'deleteMeter', 'clearEvaluations', 'downloadDataset', 'deleteDataset']);
+const store = useWatermeterStore();
+const emit = defineEmits(['resetToSetup', 'deleteMeter', 'clearEvaluations', 'downloadDataset', 'deleteDataset', 'triggerCapture']);
 
 const formattedTimestamp = computed(() => {
   if (!props.data?.picture?.timestamp) return '';

@@ -1,4 +1,3 @@
-
 <template>
   <n-card size="small" style="max-width: 300px;">
     <template #header>
@@ -45,6 +44,13 @@
     </n-flex>
     <template #header-extra>
       {{ last_updated_locale }}
+      <n-dropdown :options="menuOptions" @select="handleMenuSelect">
+        <n-button text>
+          <template #icon>
+            <n-icon><MoreVertFilled /></n-icon>
+          </template>
+        </n-button>
+      </n-dropdown>
     </template>
     <template #action>
       <n-flex justify="space-between">
@@ -57,8 +63,9 @@
 </template>
 
 <script setup>
-import {NCard, NButton, NFlex} from 'naive-ui';
+import {NCard, NButton, NFlex, NDropdown, NIcon, useDialog} from 'naive-ui';
 import {defineProps, computed, ref, onMounted} from 'vue';
+import { MoreVertFilled } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 import { useThemeStore } from '@/stores/themeStore';
 import { storeToRefs } from 'pinia';
@@ -77,6 +84,41 @@ const props = defineProps([
 
 const historyData = ref([]);
 const host = import.meta.env.VITE_HOST;
+const dialog = useDialog();
+
+const emit = defineEmits(['removed']);
+
+const menuOptions = [
+  { label: 'Remove', key: 'remove' }
+];
+
+const handleMenuSelect = (key) => {
+  if (key === 'remove') {
+    dialog.warning({
+      title: 'Confirm Removal',
+      content: 'Are you sure you want to remove this meter and its source?',
+      positiveText: 'Remove',
+      negativeText: 'Cancel',
+      onPositiveClick: removeMeter
+    });
+  }
+};
+
+const removeMeter = async () => {
+  try {
+    const response = await fetch(`${host}api/watermeters/${props.meter_name}`, {
+      method: 'DELETE',
+      headers: { 'secret': localStorage.getItem('secret') }
+    });
+    if (response.ok) {
+      emit('removed');
+    } else {
+      console.error('Failed to remove meter');
+    }
+  } catch (e) {
+    console.error('Error removing meter:', e);
+  }
+};
 
 const loadHistory = async () => {
   if (props.setup) return;

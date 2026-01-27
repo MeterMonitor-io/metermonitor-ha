@@ -19,5 +19,12 @@
     },
     "dbfile": "data/watermeters.sqlite",
     "output_dataset": "data/output_dataset",
-    "publish_to": "homeassistant/sensor/watermeter_{device}/"
+    "publish_to": "homeassistant/sensor/watermeter_{device}/",
+
+    "homeassistant": {
+      "use_supervisor_token": false,
+      "url": "http://homeassistant.local:8080",
+      "token": "CHANGE_ME",
+      "request_timeout_s": 10
+    }
   }

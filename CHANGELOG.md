@@ -1,3 +1,14 @@
+v3.0.0-beta - 27.01.2026
+- Implemented concept of image sources: MQTT, Home Assistant Camera (not yet implemented: HTTP)
+- Added polling service for Home Assistant camera sources with configurable intervals
+- Added source management UI: create, edit, and delete sources (MQTT, HA Camera, HTTP)
+- Fixed a crtitical bug that caused the bounding box to be rotated 90-180 degrees in some cases
+- Test capturing in source creation
+- Fixed UnicodeDecodeError by base64 encoding binary image data in API responses
+- Added sources table migration for database schema
+- Improved error handling and logging in capture and polling operations
+- Various UI improvements and bug fixes
+
 v.2.1.1 - 26.01.2026
 - Added sparkline chart to water meter cards showing consumption history
 - Added "Clear Evaluations" button in meter details view

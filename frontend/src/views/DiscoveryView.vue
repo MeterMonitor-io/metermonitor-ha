@@ -63,7 +63,7 @@
   <template v-if="discoveredMeters.length > 0">
     <n-h2>Waiting for setup</n-h2>
     <n-flex>
-        <WaterMeterCard v-for="item in discoveredMeters" :key="item.id" :last_updated="item[1]" :meter_name="item[0]" :setup="true" :rssi="item[2]"/>
+        <WaterMeterCard v-for="item in discoveredMeters" :key="item.id" :last_updated="item[1]" :meter_name="item[0]" :setup="true" :rssi="item[2]" @removed="getData" />
     </n-flex>
   </template>
 
@@ -79,6 +79,7 @@
             :rssi="item[2]"
             :last_digits="item[4]"
             :last_result="item[3]"
+            @removed="getData"
         />
     </n-flex>
   </template>
