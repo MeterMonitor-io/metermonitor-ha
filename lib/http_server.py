@@ -420,11 +420,6 @@ def prepare_setup_app(config, lifespan):
     def _ha_request_json_with_method(path: str, method: str = 'GET', body: Optional[dict] = None) -> dict:
         base_url = _get_ha_base_url()
         token = _get_ha_token()
-
-        print(f"[HA_REQUEST] Requesting {method} {path}")
-        print(f"[HA_REQUEST] Base URL: {base_url}")
-        print(f"[HA_REQUEST] Token present: {bool(token)}, Token length: {len(token) if token else 0}")
-
         if not base_url:
             raise HTTPException(status_code=400, detail="Home Assistant URL not configured")
         if not token:
@@ -434,10 +429,6 @@ def prepare_setup_app(config, lifespan):
         use_supervisor = bool(ha_cfg.get('use_supervisor_token', True))
         timeout_s = int(ha_cfg.get('request_timeout_s', 10) or 10)
         url = f"{base_url}{path}"
-
-        print(f"[HA_REQUEST] Full URL: {url}")
-        print(f"[HA_REQUEST] use_supervisor: {use_supervisor}")
-
         data = json.dumps(body).encode('utf-8') if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header('Authorization', f'Bearer {token}')
@@ -446,11 +437,9 @@ def prepare_setup_app(config, lifespan):
 
         try:
             with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-                print(f"[HA_REQUEST] Success: {resp.status}")
                 raw = resp.read().decode('utf-8')
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
-            print(f"[HA_REQUEST] HTTP Error {e.code}: {e.reason}")
             detail = f"HA API error {e.code} on {path}. "
             if e.code == 401:
                 if use_supervisor and 'supervisor' in base_url:
@@ -459,10 +448,8 @@ def prepare_setup_app(config, lifespan):
                     detail += "Token authentication failed. Verify your token is valid."
             raise HTTPException(status_code=502, detail=detail)
         except (urllib.error.URLError, socket.timeout) as e:
-            print(f"[HA_REQUEST] Connection error: {e}")
             raise HTTPException(status_code=502, detail=f"HA API unreachable: {e}")
         except Exception as e:
-            print(f"[HA_REQUEST] Unexpected error: {e}")
             raise HTTPException(status_code=502, detail=f"HA API unexpected error: {e}")
 
     def _ha_request_json(path: str) -> dict:

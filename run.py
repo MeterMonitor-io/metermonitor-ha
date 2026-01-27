@@ -54,14 +54,6 @@ print("[INIT] Loaded config:")
 # pretty print json
 print(json.dumps(config, indent=4))
 
-# Debug: Check for supervisor environment
-print("\n[INIT] Environment check:")
-print(f"  SUPERVISOR_TOKEN present: {bool(os.environ.get('SUPERVISOR_TOKEN'))}")
-if os.environ.get('SUPERVISOR_TOKEN'):
-    print(f"  SUPERVISOR_TOKEN length: {len(os.environ.get('SUPERVISOR_TOKEN'))}")
-print(f"  Running in HA addon mode: {os.path.exists('/data/options.json')}")
-print()
-
 # Run migrations
 run_migrations(config['dbfile'])
 

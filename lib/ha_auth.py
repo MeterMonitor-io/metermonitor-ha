@@ -20,23 +20,13 @@ def get_ha_token(config: dict) -> Optional[str]:
     ha_cfg = config.get('homeassistant') or {}
     use_supervisor = bool(ha_cfg.get('use_supervisor_token', True))
 
-    print(f"[HA_AUTH] use_supervisor_token setting: {use_supervisor}")
-
     if use_supervisor:
         sup = os.environ.get('SUPERVISOR_TOKEN')
         if sup:
-            print(f"[HA_AUTH] Using SUPERVISOR_TOKEN (length: {len(sup)})")
             return sup
-        else:
-            print("[HA_AUTH] SUPERVISOR_TOKEN not found in environment")
 
     token = ha_cfg.get('token')
-    if token and isinstance(token, str) and token.strip():
-        print(f"[HA_AUTH] Using manual token (length: {len(token)})")
-        return token
-    else:
-        print("[HA_AUTH] No manual token configured")
-        return None
+    return token if isinstance(token, str) and token.strip() else None
 
 
 def add_ha_auth_header(request: urllib.request.Request, config: dict) -> None:
