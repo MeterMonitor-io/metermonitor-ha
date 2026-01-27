@@ -3,15 +3,16 @@
 ########################
 # Frontend Build Stage #
 ########################
-FROM --platform=linux/amd64 node:18-alpine AS frontend-builder
+FROM --platform=$BUILDPLATFORM node:18-alpine AS frontend-builder
 
 WORKDIR /frontend
 
 # 1. Copy only dependency definitions first to leverage cache
 COPY frontend/package.json frontend/yarn.lock ./
 
-# 2. Install dependencies
-RUN yarn install --frozen-lockfile
+# 2. Install dependencies with cache mount
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
+    yarn install --frozen-lockfile
 
 # 3. Copy the rest of the frontend source code
 COPY frontend/ ./
@@ -29,13 +30,15 @@ WORKDIR /docker-app
 # 1. Copy python requirements first to leverage cache
 COPY requirements.txt .
 
-# 2. Install Python requirements
+# 2. Install Python requirements with cache mount
 # Added build-base for compiling potential C-extensions
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,target=/root/.cache/pip \
+    apt-get update && apt-get install -y --no-install-recommends build-essential \
     && pip install --no-cache-dir -r requirements.txt \
     && apt-get purge -y --auto-remove build-essential \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /root/.cache/pip
+    && rm -rf /var/lib/apt/lists/*
 
 # 3. Copy backend source code (ignoring files in .dockerignore)
 COPY . .

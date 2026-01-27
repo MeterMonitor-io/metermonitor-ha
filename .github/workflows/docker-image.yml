@@ -48,13 +48,24 @@ jobs:
         - name: Set up Docker Buildx
           uses: docker/setup-buildx-action@v3
 
+        - name: Determine platforms
+          id: platforms
+          run: |
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+            else
+              echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
+            fi
+
         - name: Build and push container image
           uses: docker/build-push-action@v6.13.0
           id: docker_build
           with:
             context: .
-            platforms: linux/amd64,linux/arm64
+            platforms: ${{ steps.platforms.outputs.platforms }}
             push: true
+            cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+            cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
             tags: |
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.extract_info.outputs.version }}
