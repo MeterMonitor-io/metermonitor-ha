@@ -28,6 +28,7 @@ from lib.functions import reevaluate_latest_picture, add_history_entry, reevalua
 from lib.ha_flash_suggestion import suggest_flash_entity
 from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
+from lib.ha_auth import get_ha_token, add_ha_auth_header
 from lib.threshold_optimizer import search_thresholds_for_meter
 from lib.capture_utils import capture_and_process_source, capture_from_ha_source
 
@@ -414,15 +415,7 @@ def prepare_setup_app(config, lifespan):
         return url.rstrip('/') if isinstance(url, str) and url.strip() else None
 
     def _get_ha_token() -> Optional[str]:
-        ha_cfg = _get_ha_config()
-        use_supervisor = bool(ha_cfg.get('use_supervisor_token', True))
-        if use_supervisor:
-            sup = os.environ.get('SUPERVISOR_TOKEN')
-            if sup:
-                # In supervised installs we can often proxy via supervisor; for now we treat it as a bearer token
-                return sup
-        token = ha_cfg.get('token')
-        return token if isinstance(token, str) and token.strip() else None
+        return get_ha_token(config)
 
     def _ha_request_json_with_method(path: str, method: str = 'GET', body: Optional[dict] = None) -> dict:
         base_url = _get_ha_base_url()
@@ -433,6 +426,7 @@ def prepare_setup_app(config, lifespan):
             raise HTTPException(status_code=400, detail="Home Assistant token not configured")
 
         ha_cfg = _get_ha_config()
+        use_supervisor = bool(ha_cfg.get('use_supervisor_token', True))
         timeout_s = int(ha_cfg.get('request_timeout_s', 10) or 10)
         url = f"{base_url}{path}"
         data = json.dumps(body).encode('utf-8') if body is not None else None
@@ -446,7 +440,12 @@ def prepare_setup_app(config, lifespan):
                 raw = resp.read().decode('utf-8')
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
-            detail = f"HA API error {e.code} on {path}"
+            detail = f"HA API error {e.code} on {path}. "
+            if e.code == 401:
+                if use_supervisor and 'supervisor' in base_url:
+                    detail += "Supervisor endpoint auth failed. Try using http://homeassistant.local:port instead."
+                else:
+                    detail += "Token authentication failed. Verify your token is valid."
             raise HTTPException(status_code=502, detail=detail)
         except (urllib.error.URLError, socket.timeout) as e:
             raise HTTPException(status_code=502, detail=f"HA API unreachable: {e}")
@@ -548,6 +547,7 @@ def prepare_setup_app(config, lifespan):
             raise HTTPException(status_code=400, detail="Home Assistant token not configured")
 
         ha_cfg = _get_ha_config()
+        use_supervisor = bool(ha_cfg.get('use_supervisor_token', True))
         timeout_s = int(ha_cfg.get('request_timeout_s', 10) or 10)
         url = f"{base_url}{path}"
         req = urllib.request.Request(url)
@@ -557,7 +557,12 @@ def prepare_setup_app(config, lifespan):
             with urllib.request.urlopen(req, timeout=timeout_s) as resp:
                 return resp.read()
         except urllib.error.HTTPError as e:
-            detail = f"HA API error {e.code} on {path}"
+            detail = f"HA API error {e.code} on {path}. "
+            if e.code == 401:
+                if use_supervisor and 'supervisor' in base_url:
+                    detail += "Supervisor endpoint auth failed. Try using http://homeassistant.local:port instead."
+                else:
+                    detail += "Token authentication failed. Verify your token is valid."
             raise HTTPException(status_code=502, detail=detail)
         except (urllib.error.URLError, socket.timeout) as e:
             raise HTTPException(status_code=502, detail=f"HA API unreachable: {e}")

@@ -10,6 +10,7 @@ import time
 
 from lib.functions import reevaluate_latest_picture
 from lib.model_singleton import get_meter_predictor
+from lib.ha_auth import add_ha_auth_header
 
 GLOBAL_CAPTURE_LOCK = []
 
@@ -30,7 +31,7 @@ def capture_from_ha_source(config, source_config):
         def _ha_request_json_with_method(url, method='GET', body=None):
             full_url = f"{config['homeassistant']['url']}{url}"
             req = urllib.request.Request(full_url, method=method)
-            req.add_header('Authorization', f"Bearer {config['homeassistant']['token']}")
+            add_ha_auth_header(req, config)
             req.add_header('Content-Type', 'application/json')
             if body:
                 req.data = json.dumps(body).encode('utf-8')
@@ -45,7 +46,7 @@ def capture_from_ha_source(config, source_config):
         def _ha_get_bytes(url):
             full_url = f"{config['homeassistant']['url']}{url}"
             req = urllib.request.Request(full_url)
-            req.add_header('Authorization', f"Bearer {config['homeassistant']['token']}")
+            add_ha_auth_header(req, config)
             try:
                 with urllib.request.urlopen(req) as response:
                     return response.read()
