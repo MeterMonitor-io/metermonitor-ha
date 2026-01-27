@@ -328,6 +328,9 @@ def prepare_setup_app(config, lifespan):
         try:
             capture_and_process_source(config, config['dbfile'], row, meter_preditor)
         except Exception as e:
+            # print stack trace for debug logging
+            import traceback
+            traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Capture processing failed: {e}")
 
         return {"message": "Capture and processing triggered"}
@@ -685,39 +688,6 @@ def prepare_setup_app(config, lifespan):
         db.commit()
         return {"message": "History deleted", "name": name}
 
-    # --- Watermeter evaluations (CRUD) ---
-    @app.get("/api/evaluations", dependencies=[Depends(authenticate)])
-    def list_evaluations():
-        db = db_connection()
-        db.row_factory = sqlite3.Row
-        cur = db.cursor()
-        cur.execute(
-            "SELECT name, eval, timestamp FROM evaluations ORDER BY name, timestamp"
-        )
-        out = [dict(row) for row in cur.fetchall()]
-        return {"evaluations": out}
-
-    @app.post("/api/evaluations", dependencies=[Depends(authenticate)])
-    def create_evaluation(payload: EvalRequest):
-        db = db_connection()
-        cur = db.cursor()
-        cur.execute(
-            "INSERT INTO evaluations (name, eval, timestamp) VALUES (?, ?, ?)",
-            (payload.eval, int(time.time())),
-        )
-        db.commit()
-        return {"message": "Evaluation created"}
-
-    @app.delete("/api/evaluations/{name}", dependencies=[Depends(authenticate)])
-    def delete_evaluation(name: str):
-        db = db_connection()
-        cur = db.cursor()
-        cur.execute("DELETE FROM evaluations WHERE name = ?", (name,))
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Evaluation not found")
-        db.commit()
-        return {"message": "Evaluation deleted", "name": name}
-
     @app.get("/api/alerts", dependencies=[Depends(authenticate)])
     def get_current_alerts():
         return get_alerts()
@@ -947,6 +917,7 @@ def prepare_setup_app(config, lifespan):
         cursor.execute("DELETE FROM evaluations WHERE name = ?", (name,))
         cursor.execute("DELETE FROM history WHERE name = ?", (name,))
         cursor.execute("DELETE FROM settings WHERE name = ?", (name,))
+        cursor.execute("DELETE FROM sources WHERE name = ?", (name,))
         db.commit()
         return {"message": "Watermeter deleted", "name": name}
 
@@ -1151,6 +1122,7 @@ def prepare_setup_app(config, lifespan):
                        timestamp, \
                        result, \
                        total_confidence, \
+                       used_confidence, \
                        outdated, \
                        id, \
                        denied_digits, \
@@ -1179,9 +1151,10 @@ def prepare_setup_app(config, lifespan):
             "timestamp": row[3],
             "result": row[4],
             "total_confidence": row[5],
-            "outdated": row[6],
-            "denied_digits": json.loads(row[8]) if row[8] else None,
-            "th_digits_inverted": json.loads(row[9]) if row[9] else None
+            "used_confidence": row[6],
+            "outdated": row[7],
+            "denied_digits": json.loads(row[9]) if row[9] else None,
+            "th_digits_inverted": json.loads(row[10]) if row[10] else None
         } for row in cursor.fetchall()]}
 
     @app.delete("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])

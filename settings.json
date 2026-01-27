@@ -24,7 +24,7 @@
     "homeassistant": {
       "use_supervisor_token": false,
       "url": "http://homeassistant.local:8080",
-      "token": "CHANGE_ME",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI5MGI0N2M3OGJhOTM0OTU4OGQzY2I2YTExZDM0NjU0NyIsImlhdCI6MTc2OTUzNzI5NCwiZXhwIjoyMDg0ODk3Mjk0fQ.jt52BGpdtk3IxPUXlmvSom9PPrTWPck6NPXZJHAtG2A",
       "request_timeout_s": 10
     }
   }

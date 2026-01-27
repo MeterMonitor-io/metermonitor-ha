@@ -329,4 +329,26 @@ def run_migrations(db_file):
                 cursor.execute("UPDATE evaluations SET th_digits_inverted = ? WHERE id = ?", (inverted_json, row_id))
             print("[MIGRATION] Added 'th_digits_inverted' column to 'evaluations' table and populated values")
 
+        # add column "used_confidence" to history
+        cursor.execute("PRAGMA table_info(history)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'used_confidence' not in columns:
+            cursor.execute("ALTER TABLE history ADD COLUMN used_confidence REAL DEFAULT -1.0")
+            print("[MIGRATION] Added 'used_confidence' column to 'history' table")
+
+        # add column "used_confidence" to evaluations
+        cursor.execute("PRAGMA table_info(evaluations)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'used_confidence' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN used_confidence REAL DEFAULT -1.0")
+            print("[MIGRATION] Added 'used_confidence' column to 'evaluations' table")
+
+        # add column "used_confidence" to evaluations
+        cursor.execute("PRAGMA table_info(watermeters)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'use_correctional_alg' not in columns:
+            cursor.execute("ALTER TABLE watermeters ADD COLUMN use_correctional_alg BOOLEAN DEFAULT true")
+            print("[MIGRATION] Added 'use_correctional_alg' column to 'evaluations' table")
+
+
 

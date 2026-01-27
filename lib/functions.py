@@ -156,18 +156,19 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
 
         # If the setup is finished, try to correct the value and save the result
         value = None
-        confidence = 0
+        confidence, used_confidence = 0, 0
         if setup:
             r = correct_value(db_file, name, [result, processed, prediction, timestamp, denied_digits], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
             if r is not None:
-                value, confidence = r
+                value, confidence, used_confidence = r
                 cursor.execute('''
-                    INSERT INTO history (name, value, confidence, target_brightness, timestamp, manual)
-                    VALUES (?,?,?,?,?,?)
+                    INSERT INTO history (name, value, confidence, used_confidence, target_brightness, timestamp, manual)
+                    VALUES (?,?,?,?,?,?,?)
                 ''', (
                     name,
                     value,
                     confidence,
+                    used_confidence,
                     target_brightness,
                     timestamp,
                     False
@@ -216,6 +217,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                timestamp = ?,
                                result = ?,
                                total_confidence = ?,
+                               used_confidence = ?,
                                th_digits_inverted = ?
                            WHERE name = ? AND id = ?
                            ''', (
@@ -225,6 +227,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                timestamp if isinstance(timestamp, str) and timestamp.strip() else None,
                                value if value is not None else None,
                                float(confidence) if confidence is not None else None,
+                               float(used_confidence) if used_confidence is not None else None,
                                json.dumps(digits_inverted),
                                name,
                                eval_id
@@ -232,8 +235,8 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         else:
             cursor.execute('''
                            INSERT INTO evaluations
-                           (name, colored_digits, th_digits, predictions, timestamp, result, total_confidence, denied_digits, th_digits_inverted)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           (name, colored_digits, th_digits, predictions, timestamp, result, total_confidence, used_confidence, denied_digits, th_digits_inverted)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ''', (
                                name,
                                json.dumps(result) if result is not None else None,
@@ -242,6 +245,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                timestamp if isinstance(timestamp, str) and timestamp.strip() else None,
                                value if value is not None else None,
                                float(confidence) if confidence is not None else None,
+                               float(used_confidence) if used_confidence is not None else None,
                                json.dumps(denied_digits),
                                json.dumps(digits_inverted)
                            ))

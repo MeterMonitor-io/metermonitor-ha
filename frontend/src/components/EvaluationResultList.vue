@@ -22,10 +22,10 @@
                   <template v-if="evaluation.total_confidence">
                     <div class="conf_box">
                       Confidence
-                      <div :style="{ color: getColor(usedConfidences[i]), fontSize: '20px' }">
-                        <n-tooltip trigger="hover">
+                      <div :style="{ color: getColor(evaluation.used_confidence), fontSize: '20px' }">
+                        <n-tooltip trigger="hover" v-if="evaluation.used_confidence !== -1.0">
                           <template #trigger>
-                            <span style="cursor: help;"><b>{{ (usedConfidences[i] * 100).toFixed(1) }}</b>%</span>
+                            <span style="cursor: help;"><b>{{ (evaluation.used_confidence * 100).toFixed(1) }}</b>%</span>
                           </template>
                           Used confidence: Only digits accepted by the correction algorithm
                         </n-tooltip>
@@ -154,20 +154,6 @@ const props = defineProps({
     type: String,
     default: ''
   }
-});
-
-// Pre-compute used confidence for all evaluations
-const usedConfidences = computed(() => {
-  return props.evaluations.map(evaluation => {
-    if (!evaluation.predictions || !evaluation.denied_digits) return 1.0;
-    let combinedConfidence = 1.0;
-    for (let i = 0; i < evaluation.predictions.length; i++) {
-      if (!evaluation.denied_digits[i]) {
-        combinedConfidence *= evaluation.predictions[i][0][1];
-      }
-    }
-    return combinedConfidence;
-  });
 });
 
 const getColor = (value) => {

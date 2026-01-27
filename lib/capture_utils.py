@@ -48,12 +48,23 @@ def capture_from_ha_source(config, source_config):
             req = urllib.request.Request(full_url)
             add_ha_auth_header(req, config)
             try:
-                with urllib.request.urlopen(req) as response:
+                with urllib.request.urlopen(req, timeout=30) as response:
                     return response.read()
             except urllib.error.HTTPError as e:
-                raise Exception(f"HA API error {e.code}: {e.read().decode('utf-8')}")
+                error_msg = f"HA API error {e.code} on {url}"
+                try:
+                    error_body = e.read().decode('utf-8')
+                    if error_body:
+                        error_msg += f": {error_body}"
+                except:
+                    pass
+                if e.code == 500:
+                    error_msg += " (Camera may be offline, unreachable, or taking too long to respond)"
+                raise Exception(error_msg)
+            except urllib.error.URLError as e:
+                raise Exception(f"HA API connection error on {url}: {e}")
             except Exception as e:
-                raise Exception(f"HA API unexpected error: {e}")
+                raise Exception(f"HA API unexpected error on {url}: {e}")
 
         flash_enabled = False
         try:
@@ -181,14 +192,24 @@ def capture_and_process_source(config, db_file, source_row, meter_predictor):
     config_json = source_row['config_json']
     if not config_json:
         return
-    cfg = json.loads(config_json)
-    raw_image, format_, _ = capture_from_ha_source(config, cfg)
-    timestamp = process_captured_image(db_file, source_row['name'], raw_image, format_, config, meter_predictor)
 
-    # Update source last_success_ts
-    with sqlite3.connect(db_file) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE sources SET last_success_ts = ?, last_error = NULL WHERE id = ?", (timestamp, source_row['id']))
-        conn.commit()
-    print(f"[CAPTURE] Successfully captured and processed source {source_row['name']}")
+    try:
+        cfg = json.loads(config_json)
+        raw_image, format_, _ = capture_from_ha_source(config, cfg)
+        timestamp = process_captured_image(db_file, source_row['name'], raw_image, format_, config, meter_predictor)
+
+        # Update source last_success_ts
+        with sqlite3.connect(db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE sources SET last_success_ts = ?, last_error = NULL WHERE id = ?", (timestamp, source_row['id']))
+            conn.commit()
+        print(f"[CAPTURE] Successfully captured and processed source {source_row['name']}")
+    except Exception as e:
+        error_msg = str(e)
+        print(f"[CAPTURE] Failed to capture source {source_row['name']}: {error_msg}")
+        # Update source with error
+        with sqlite3.connect(db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE sources SET last_error = ? WHERE id = ?", (error_msg, source_row['id']))
+            conn.commit()
 

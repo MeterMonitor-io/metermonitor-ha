@@ -32,27 +32,31 @@
               />
             </n-form-item-gi>
 
-            <n-form-item-gi :span="18" label="Flash light entity (optional)">
-              <n-space align="center" style="width: 100%;" :wrap="false">
-                <n-input
-                  v-model:value="form.flash_entity_id"
-                  placeholder="e.g. light.watermeter_led"
-                />
-                <n-button
-                  secondary
-                  :disabled="!suggestedFlash"
-                  @click="useSuggestedFlash"
-                >
-                  Use suggested
-                </n-button>
+            <n-form-item-gi :span="18" label="Flash light entity (we recommend to use a always-on LED instead)">
+              <n-space vertical style="width: 100%;">
+                <n-space align="center" style="width: 100%;" :wrap="false">
+                  <n-switch v-model:value="form.flash_enabled" />
+                  <n-input
+                    v-model:value="form.flash_entity_id"
+                    placeholder="e.g. light.watermeter_led"
+                    :disabled="!form.flash_enabled"
+                  />
+                  <n-button
+                    secondary
+                    :disabled="!suggestedFlash || !form.flash_enabled"
+                    @click="useSuggestedFlash"
+                  >
+                    Use suggested
+                  </n-button>
+                </n-space>
+                <div style="opacity: 0.7;" v-if="suggestedFlash && form.flash_enabled">
+                  Suggested: <span class="code-inline">{{ suggestedFlash }}</span>
+                </div>
               </n-space>
-              <div style="opacity: 0.7; margin-top: 6px;" v-if="suggestedFlash">
-                Suggested: <span class="code-inline">{{ suggestedFlash }}</span>
-              </div>
             </n-form-item-gi>
 
             <n-form-item-gi :span="6" label="Flash delay (ms)">
-              <n-input-number v-model:value="form.flash_delay_ms" :min="0" :max="10000" />
+              <n-input-number v-model:value="form.flash_delay_ms" :min="0" :max="10000" :disabled="!form.flash_enabled" />
             </n-form-item-gi>
 
             <n-form-item-gi :span="24" label="Test / preview">
@@ -153,6 +157,7 @@ const form = ref({
   enabled: true,
   poll_interval_m: 10,
   camera_entity_id: null,
+  flash_enabled: false,
   flash_entity_id: null,
   flash_delay_ms: 10000,
 });
@@ -221,6 +226,7 @@ watch(
     const cam = cameras.value.find((c) => c.entity_id === form.value.camera_entity_id);
     if (cam?.suggested_flash_entity_id) {
       form.value.flash_entity_id = cam.suggested_flash_entity_id;
+      form.value.flash_enabled = true;
     }
   }
 );
@@ -245,7 +251,7 @@ async function create() {
     if (selectedType.value === 'ha_camera') {
       payload.config = {
         camera_entity_id: form.value.camera_entity_id,
-        flash_entity_id: form.value.flash_entity_id || null,
+        flash_entity_id: form.value.flash_enabled ? (form.value.flash_entity_id || null) : '',
         flash_delay_ms: form.value.flash_delay_ms,
       };
     }
@@ -260,6 +266,7 @@ async function create() {
       enabled: true,
       poll_interval_m: 10,
       camera_entity_id: null,
+      flash_enabled: true,
       flash_entity_id: null,
       flash_delay_ms: 10000,
     };
@@ -288,7 +295,7 @@ async function testCapture() {
   try {
     const r = await apiService.postJson(`api/capture-now`, {
       cam_entity_id: form.value.camera_entity_id,
-      flash_entity_id: form.value.flash_entity_id || null,
+      flash_entity_id: form.value.flash_enabled ? (form.value.flash_entity_id || null) : '',
       flash_delay_ms: form.value.flash_delay_ms,
     });
 

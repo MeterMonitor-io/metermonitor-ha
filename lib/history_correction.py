@@ -40,6 +40,8 @@ def correct_value(db_file:str, name: str, new_eval, allow_negative_correction = 
 
         correctedValue = ""
         totalConfidence = 1.0
+        # used confidence tracks the confidence of digits that actually are being funneled into the correction
+        usedConfidence = 1.0
         negative_corrected = False
         for i, lastChar in enumerate(last_value):
 
@@ -67,6 +69,7 @@ def correct_value(db_file:str, name: str, new_eval, allow_negative_correction = 
                 if int(tempValue) >= int(last_value[:i+1]) or negative_corrected and tempConfidence > 0.15:
                     correctedValue = tempValue
                     totalConfidence = tempConfidence
+                    if not denied_digits[i]: usedConfidence *= prediction[1]
                     digit_appended = True
                     break
 
@@ -80,6 +83,7 @@ def correct_value(db_file:str, name: str, new_eval, allow_negative_correction = 
                                 int(tempValue) >= int(pre_last_value[:i+1]):
                             correctedValue = tempValue
                             totalConfidence = tempConfidence
+                            usedConfidence *= prediction[1]
                             digit_appended = True
                             negative_corrected = True
                             print(f"[CorrectionAlg ({name})] Negative correction accepted")
@@ -98,4 +102,4 @@ def correct_value(db_file:str, name: str, new_eval, allow_negative_correction = 
             return None
         
         print (f"[CorrectionAlg ({name})] Value accepted for time", new_time, "flow rate", flow_rate, "value", correctedValue)
-        return int(correctedValue), totalConfidence
+        return int(correctedValue), totalConfidence, usedConfidence
