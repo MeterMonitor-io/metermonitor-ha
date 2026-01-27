@@ -157,10 +157,27 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         # If the setup is finished, try to correct the value and save the result
         value = None
         confidence, used_confidence = 0, 0
+        correction_meta = {
+            "flow_rate_m3h": None,
+            "delta_m3": None,
+            "delta_raw": None,
+            "time_diff_min": None,
+            "rejection_reason": None,
+            "negative_correction_applied": None,
+            "fallback_digit_count": None,
+            "digits_changed_vs_last": None,
+            "digits_changed_vs_top_pred": None,
+            "prediction_rank_used_counts": None,
+            "denied_digits_count": None,
+            "timestamp_adjusted": None
+        }
         if setup:
-            r = correct_value(db_file, name, [result, processed, prediction, timestamp, denied_digits], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
-            if r is not None:
-                value, confidence, used_confidence = r
+            correction = correct_value(db_file, name, [result, processed, prediction, timestamp, denied_digits], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
+            correction_meta = {k: correction.get(k) for k in correction_meta.keys()}
+            confidence = correction.get("total_confidence", 0.0)
+            used_confidence = correction.get("used_confidence", 0.0)
+            if correction.get("accepted"):
+                value = correction.get("value")
                 cursor.execute('''
                     INSERT INTO history (name, value, confidence, used_confidence, target_brightness, timestamp, manual)
                     VALUES (?,?,?,?,?,?,?)
@@ -218,7 +235,19 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                result = ?,
                                total_confidence = ?,
                                used_confidence = ?,
-                               th_digits_inverted = ?
+                               th_digits_inverted = ?,
+                               flow_rate_m3h = ?,
+                               delta_m3 = ?,
+                               delta_raw = ?,
+                               time_diff_min = ?,
+                               rejection_reason = ?,
+                               negative_correction_applied = ?,
+                               fallback_digit_count = ?,
+                               digits_changed_vs_last = ?,
+                               digits_changed_vs_top_pred = ?,
+                               prediction_rank_used_counts = ?,
+                               denied_digits_count = ?,
+                               timestamp_adjusted = ?
                            WHERE name = ? AND id = ?
                            ''', (
                                json.dumps(result) if result is not None else None,
@@ -229,14 +258,28 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                float(confidence) if confidence is not None else None,
                                float(used_confidence) if used_confidence is not None else None,
                                json.dumps(digits_inverted),
+                               correction_meta["flow_rate_m3h"],
+                               correction_meta["delta_m3"],
+                               correction_meta["delta_raw"],
+                               correction_meta["time_diff_min"],
+                               correction_meta["rejection_reason"],
+                               correction_meta["negative_correction_applied"],
+                               correction_meta["fallback_digit_count"],
+                               correction_meta["digits_changed_vs_last"],
+                               correction_meta["digits_changed_vs_top_pred"],
+                               json.dumps(correction_meta["prediction_rank_used_counts"]) if correction_meta["prediction_rank_used_counts"] is not None else None,
+                               correction_meta["denied_digits_count"],
+                               correction_meta["timestamp_adjusted"],
                                name,
                                eval_id
                            ))
         else:
             cursor.execute('''
                            INSERT INTO evaluations
-                           (name, colored_digits, th_digits, predictions, timestamp, result, total_confidence, used_confidence, denied_digits, th_digits_inverted)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           (name, colored_digits, th_digits, predictions, timestamp, result, total_confidence, used_confidence, denied_digits, th_digits_inverted,
+                            flow_rate_m3h, delta_m3, delta_raw, time_diff_min, rejection_reason, negative_correction_applied, fallback_digit_count,
+                            digits_changed_vs_last, digits_changed_vs_top_pred, prediction_rank_used_counts, denied_digits_count, timestamp_adjusted)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ''', (
                                name,
                                json.dumps(result) if result is not None else None,
@@ -247,7 +290,19 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
                                float(confidence) if confidence is not None else None,
                                float(used_confidence) if used_confidence is not None else None,
                                json.dumps(denied_digits),
-                               json.dumps(digits_inverted)
+                               json.dumps(digits_inverted),
+                               correction_meta["flow_rate_m3h"],
+                               correction_meta["delta_m3"],
+                               correction_meta["delta_raw"],
+                               correction_meta["time_diff_min"],
+                               correction_meta["rejection_reason"],
+                               correction_meta["negative_correction_applied"],
+                               correction_meta["fallback_digit_count"],
+                               correction_meta["digits_changed_vs_last"],
+                               correction_meta["digits_changed_vs_top_pred"],
+                               json.dumps(correction_meta["prediction_rank_used_counts"]) if correction_meta["prediction_rank_used_counts"] is not None else None,
+                               correction_meta["denied_digits_count"],
+                               correction_meta["timestamp_adjusted"]
                            ))
 
         # remove old evaluations

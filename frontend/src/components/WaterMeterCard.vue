@@ -1,6 +1,6 @@
 <template>
   <n-flex vertical>
-    <n-card size="small" style="max-width: 300px;" :class="{ 'error-card': hasError, 'no-bb': !hasBB }">
+    <n-card size="small" style="width: 300px;" :class="{ 'error-card': hasError, 'no-bb': !hasBB && !setup }">
       <template #header>
         <span class="card-title" :title="meter_name">{{ meter_name }}</span>
       </template>
@@ -64,7 +64,7 @@
     <span v-if="hasError" style="color: #d03050; max-width: 300px;">
       {{ last_error }}
     </span>
-    <span v-if="!hasBB" style="color: rgb(240, 138, 0); max-width: 300px;">
+    <span v-if="!hasBB && !setup" style="color: rgb(240, 138, 0); max-width: 300px;">
       No bounding box found in the last capture
     </span>
   </n-flex>

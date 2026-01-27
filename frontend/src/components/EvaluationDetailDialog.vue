@@ -120,6 +120,59 @@
             <span style="font-size: 24px; opacity: 0.7;">m³</span>
           </n-space>
         </n-card>
+
+        <n-card size="small" title="Correction Metadata" embedded style="margin-top: 16px;">
+          <n-grid cols="2 s:1 m:2 l:2" x-gap="16" y-gap="8">
+            <n-grid-item>
+              <div class="meta-label">Flow rate</div>
+              <div class="meta-value">{{ formatFlowRate(evaluation.flow_rate_m3h) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Delta</div>
+              <div class="meta-value">{{ formatDelta(evaluation.delta_m3) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Delta (raw)</div>
+              <div class="meta-value">{{ formatInt(evaluation.delta_raw) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Time diff</div>
+              <div class="meta-value">{{ formatMinutes(evaluation.time_diff_min) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Rejection reason</div>
+              <div class="meta-value">{{ formatRejectionReason(evaluation.rejection_reason) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Negative correction</div>
+              <div class="meta-value">{{ formatBool(evaluation.negative_correction_applied) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Fallback digits</div>
+              <div class="meta-value">{{ formatInt(evaluation.fallback_digit_count) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Digits changed vs last</div>
+              <div class="meta-value">{{ formatInt(evaluation.digits_changed_vs_last) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Digits changed vs top pred</div>
+              <div class="meta-value">{{ formatInt(evaluation.digits_changed_vs_top_pred) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Prediction ranks used</div>
+              <div class="meta-value">{{ formatRankCounts(evaluation.prediction_rank_used_counts) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Denied digits count</div>
+              <div class="meta-value">{{ formatInt(evaluation.denied_digits_count) }}</div>
+            </n-grid-item>
+            <n-grid-item>
+              <div class="meta-label">Timestamp adjusted</div>
+              <div class="meta-value">{{ formatBool(evaluation.timestamp_adjusted) }}</div>
+            </n-grid-item>
+          </n-grid>
+        </n-card>
       </div>
     </n-spin>
   </n-modal>
@@ -175,6 +228,56 @@ const formattedTimestamp = (ts) => {
     minute: '2-digit',
     second: '2-digit'
   });
+};
+
+const formatNumber = (value, digits = 2) => {
+  if (value === null || value === undefined) return '—';
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return '—';
+  return numeric.toFixed(digits);
+};
+
+const formatInt = (value) => {
+  if (value === null || value === undefined) return '—';
+  return value;
+};
+
+const formatBool = (value) => {
+  if (value === null || value === undefined) return '—';
+  return value ? 'Yes' : 'No';
+};
+
+const formatFlowRate = (value) => {
+  if (value === null || value === undefined) return '—';
+  return `${formatNumber(value, 3)} m³/h`;
+};
+
+const formatDelta = (value) => {
+  if (value === null || value === undefined) return '—';
+  return `${formatNumber(value, 3)} m³`;
+};
+
+const formatMinutes = (value) => {
+  if (value === null || value === undefined) return '—';
+  return `${formatNumber(value, 2)} min`;
+};
+
+const formatRankCounts = (counts) => {
+  if (!Array.isArray(counts)) return '—';
+  const [rank1 = 0, rank2 = 0, rank3 = 0] = counts;
+  return `#1 ${rank1}, #2 ${rank2}, #3 ${rank3}`;
+};
+
+const formatRejectionReason = (reason) => {
+  if (!reason) return '—';
+  const labels = {
+    no_history: 'No history',
+    time_diff_zero: 'Time diff = 0',
+    flow_rate_high: 'Flow rate too high',
+    negative_flow: 'Negative flow',
+    fallback_digit: 'Fallback digit'
+  };
+  return labels[reason] || reason;
 };
 
 const loadEvaluation = async () => {
@@ -261,5 +364,15 @@ watch(() => props.show, (newVal) => {
 
 .result-digit.orange {
   color: orange;
+}
+
+.meta-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.meta-value {
+  font-size: 14px;
+  font-weight: 600;
 }
 </style>

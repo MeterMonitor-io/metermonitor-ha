@@ -1128,7 +1128,19 @@ def prepare_setup_app(config, lifespan):
                        outdated, \
                        id, \
                        denied_digits, \
-                       th_digits_inverted
+                       th_digits_inverted, \
+                       flow_rate_m3h, \
+                       delta_m3, \
+                       delta_raw, \
+                       time_diff_min, \
+                       rejection_reason, \
+                       negative_correction_applied, \
+                       fallback_digit_count, \
+                       digits_changed_vs_last, \
+                       digits_changed_vs_top_pred, \
+                       prediction_rank_used_counts, \
+                       denied_digits_count, \
+                       timestamp_adjusted
                 FROM evaluations
                 WHERE name = ? \
                 """
@@ -1156,7 +1168,19 @@ def prepare_setup_app(config, lifespan):
             "used_confidence": row[6],
             "outdated": row[7],
             "denied_digits": json.loads(row[9]) if row[9] else None,
-            "th_digits_inverted": json.loads(row[10]) if row[10] else None
+            "th_digits_inverted": json.loads(row[10]) if row[10] else None,
+            "flow_rate_m3h": row[11],
+            "delta_m3": row[12],
+            "delta_raw": row[13],
+            "time_diff_min": row[14],
+            "rejection_reason": row[15],
+            "negative_correction_applied": row[16],
+            "fallback_digit_count": row[17],
+            "digits_changed_vs_last": row[18],
+            "digits_changed_vs_top_pred": row[19],
+            "prediction_rank_used_counts": json.loads(row[20]) if row[20] else None,
+            "denied_digits_count": row[21],
+            "timestamp_adjusted": row[22]
         } for row in cursor.fetchall()]}
 
     @app.get("/api/watermeters/{name}/evals/{eval_id}", dependencies=[Depends(authenticate)])
@@ -1181,7 +1205,19 @@ def prepare_setup_app(config, lifespan):
                    outdated,
                    id,
                    denied_digits,
-                   th_digits_inverted
+                   th_digits_inverted,
+                   flow_rate_m3h,
+                   delta_m3,
+                   delta_raw,
+                   time_diff_min,
+                   rejection_reason,
+                   negative_correction_applied,
+                   fallback_digit_count,
+                   digits_changed_vs_last,
+                   digits_changed_vs_top_pred,
+                   prediction_rank_used_counts,
+                   denied_digits_count,
+                   timestamp_adjusted
             FROM evaluations
             WHERE name = ? AND id = ?
         """, (name, eval_id))
@@ -1201,7 +1237,19 @@ def prepare_setup_app(config, lifespan):
             "used_confidence": row[6],
             "outdated": row[7],
             "denied_digits": json.loads(row[9]) if row[9] else None,
-            "th_digits_inverted": json.loads(row[10]) if row[10] else None
+            "th_digits_inverted": json.loads(row[10]) if row[10] else None,
+            "flow_rate_m3h": row[11],
+            "delta_m3": row[12],
+            "delta_raw": row[13],
+            "time_diff_min": row[14],
+            "rejection_reason": row[15],
+            "negative_correction_applied": row[16],
+            "fallback_digit_count": row[17],
+            "digits_changed_vs_last": row[18],
+            "digits_changed_vs_top_pred": row[19],
+            "prediction_rank_used_counts": json.loads(row[20]) if row[20] else None,
+            "denied_digits_count": row[21],
+            "timestamp_adjusted": row[22]
         }
 
     @app.delete("/api/watermeters/{name}/evals", dependencies=[Depends(authenticate)])

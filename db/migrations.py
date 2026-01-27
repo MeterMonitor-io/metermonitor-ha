@@ -343,12 +343,51 @@ def run_migrations(db_file):
             cursor.execute("ALTER TABLE evaluations ADD COLUMN used_confidence REAL DEFAULT -1.0")
             print("[MIGRATION] Added 'used_confidence' column to 'evaluations' table")
 
+        # add correction metadata columns to evaluations
+        cursor.execute("PRAGMA table_info(evaluations)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'flow_rate_m3h' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN flow_rate_m3h REAL")
+            print("[MIGRATION] Added 'flow_rate_m3h' column to 'evaluations' table")
+        if 'delta_m3' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN delta_m3 REAL")
+            print("[MIGRATION] Added 'delta_m3' column to 'evaluations' table")
+        if 'delta_raw' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN delta_raw INTEGER")
+            print("[MIGRATION] Added 'delta_raw' column to 'evaluations' table")
+        if 'time_diff_min' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN time_diff_min REAL")
+            print("[MIGRATION] Added 'time_diff_min' column to 'evaluations' table")
+        if 'rejection_reason' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN rejection_reason TEXT")
+            print("[MIGRATION] Added 'rejection_reason' column to 'evaluations' table")
+        if 'negative_correction_applied' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN negative_correction_applied BOOLEAN")
+            print("[MIGRATION] Added 'negative_correction_applied' column to 'evaluations' table")
+        if 'fallback_digit_count' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN fallback_digit_count INTEGER")
+            print("[MIGRATION] Added 'fallback_digit_count' column to 'evaluations' table")
+        if 'digits_changed_vs_last' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN digits_changed_vs_last INTEGER")
+            print("[MIGRATION] Added 'digits_changed_vs_last' column to 'evaluations' table")
+        if 'digits_changed_vs_top_pred' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN digits_changed_vs_top_pred INTEGER")
+            print("[MIGRATION] Added 'digits_changed_vs_top_pred' column to 'evaluations' table")
+        if 'prediction_rank_used_counts' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN prediction_rank_used_counts TEXT")
+            print("[MIGRATION] Added 'prediction_rank_used_counts' column to 'evaluations' table")
+        if 'denied_digits_count' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN denied_digits_count INTEGER")
+            print("[MIGRATION] Added 'denied_digits_count' column to 'evaluations' table")
+        if 'timestamp_adjusted' not in columns:
+            cursor.execute("ALTER TABLE evaluations ADD COLUMN timestamp_adjusted BOOLEAN")
+            print("[MIGRATION] Added 'timestamp_adjusted' column to 'evaluations' table")
+
         # add column "used_confidence" to evaluations
         cursor.execute("PRAGMA table_info(watermeters)")
         columns = [info[1] for info in cursor.fetchall()]
         if 'use_correctional_alg' not in columns:
             cursor.execute("ALTER TABLE watermeters ADD COLUMN use_correctional_alg BOOLEAN DEFAULT true")
             print("[MIGRATION] Added 'use_correctional_alg' column to 'evaluations' table")
-
 
 
