@@ -75,7 +75,8 @@ export const useWatermeterStore = defineStore('watermeter', () => {
       max_flow_rate: data.max_flow_rate,
       conf_threshold: data.conf_threshold,
       roi_extractor: data.roi_extractor || 'yolo',
-      template_id: data.template_id || null
+      template_id: data.template_id || null,
+      use_correctional_alg: data.use_correctional_alg === 1 || data.use_correctional_alg === true
     });
 
     return data;
