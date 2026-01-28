@@ -44,6 +44,7 @@ class MeterPredictor:
         )
 
         self.class_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'r']
+        self.last_error = None
 
         # Get input/output names for both models
         self.yolo_input_name = self.yolo_session.get_inputs()[0].name
@@ -58,7 +59,7 @@ class MeterPredictor:
         print(f"[MeterPredictor] YOLO input: {self.yolo_input_name}")
         print(f"[MeterPredictor] Digit classifier input: {self.digit_input_name}")
 
-    def extract_display_and_segment(self, input_image, segments=7, rotated_180=False, extended_last_digit=False, shrink_last_3=False, target_brightness=None, roi_extractor="yolo"):
+    def extract_display_and_segment(self, input_image, segments=7, rotated_180=False, extended_last_digit=False, shrink_last_3=False, target_brightness=None, roi_extractor="yolo", extractor_instance=None):
         """
         Predicts the water meter reading on a single image:
           - Runs YOLO detection for oriented bounding box (OBB)
@@ -74,16 +75,30 @@ class MeterPredictor:
             target_brightness (float): The target brightness to adjust the image to.
         """
 
-        if rotated_180:
+        self.last_error = None
+        use_templated_extractor = extractor_instance is not None
+
+        if use_templated_extractor:
+            if isinstance(input_image, Image.Image):
+                input_image = cv2.cvtColor(np.array(input_image), cv2.COLOR_RGB2BGR)
+        elif roi_extractor == "yolo" and rotated_180:
             input_image = input_image.rotate(180, expand=True)
 
-        if roi_extractor == "bypass":
+        if extractor_instance is not None:
+            extractor = extractor_instance
+        elif roi_extractor == "bypass":
             extractor = BypassExtractor()
         else:
             extractor = YOLOExtractor(self.yolo_session, self.yolo_input_name, extended_last_digit=extended_last_digit)
         rotated_cropped_img, rotated_cropped_img_ext, boundingboxed_image = extractor.extract(input_image)
         if rotated_cropped_img is None:
+            self.last_error = getattr(extractor, "last_error", None) or "No result found"
             return [], [], None, None
+
+        if use_templated_extractor and rotated_180:
+            rotated_cropped_img = cv2.rotate(rotated_cropped_img, cv2.ROTATE_180)
+            if rotated_cropped_img_ext is not None:
+                rotated_cropped_img_ext = cv2.rotate(rotated_cropped_img_ext, cv2.ROTATE_180)
 
         # Split the cropped meter into segments vertical parts for classification
         if segments == 0:

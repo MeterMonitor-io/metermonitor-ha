@@ -15,6 +15,9 @@ export const useSetupStore = defineStore('setup', () => {
   const searchingThresholds = ref(false);
   const thresholdSearchResult = ref(null);
   const tooFewEvaluations = ref(false);
+  const templateSaving = ref(false);
+  const templateData = ref(null);
+  const reevaluateError = ref(null);
 
   // Actions
   const searchThresholds = async (meterId, steps = 10) => {
@@ -106,18 +109,31 @@ export const useSetupStore = defineStore('setup', () => {
 
   const updateSegmentationSettings = async (data, meterId) => {
     const watermeterStore = useWatermeterStore();
-    
+
     // Cancel any ongoing loading
     loadingCancelled.value = true;
+
+    const previousExtractor = watermeterStore.settings.roi_extractor || 'yolo';
+    const nextExtractor = data.roiExtractor || previousExtractor;
+    const isTemplateExtractor = (value) => ['orb'].includes(value);
 
     watermeterStore.settings.segments = data.segments;
     watermeterStore.settings.extended_last_digit = data.extendedLastDigit;
     watermeterStore.settings.shrink_last_3 = data.last3DigitsNarrow;
     watermeterStore.settings.rotated_180 = data.rotated180;
-    watermeterStore.settings.roi_extractor = data.roiExtractor;
+    watermeterStore.settings.roi_extractor = nextExtractor;
+
+    if (nextExtractor !== previousExtractor) {
+      if (!isTemplateExtractor(nextExtractor) || previousExtractor !== nextExtractor) {
+        watermeterStore.settings.template_id = null;
+        templateData.value = null;
+      }
+    }
 
     await watermeterStore.updateSettings(meterId);
-    await reevaluate(meterId);
+    if (!isTemplateExtractor(nextExtractor) || watermeterStore.settings.template_id) {
+      await reevaluate(meterId);
+    }
   };
 
   const clearEvaluationExamples = (meterId=null) => {
@@ -130,6 +146,7 @@ export const useSetupStore = defineStore('setup', () => {
     loadingCancelled.value = true;
 
     loading.value = true;
+    reevaluateError.value = null;
     try {
       const response = await apiService.post(`api/watermeters/${meterId}/evaluations/reevaluate`);
 
@@ -138,13 +155,18 @@ export const useSetupStore = defineStore('setup', () => {
 
         if (result.error) {
           console.error('reevaluate error', result.error);
+          reevaluateError.value = result.error;
           return;
         }
 
         noBoundingBox.value = !result["result"]
+        if (!result["result"] && result.error) {
+          reevaluateError.value = result.error;
+        }
       }
     } catch (e) {
       console.error('reevaluate failed', e);
+      reevaluateError.value = e.message || 'Re-evaluation failed';
     } finally {
       // Refresh the data
       const watermeterStore = useWatermeterStore();
@@ -254,6 +276,77 @@ export const useSetupStore = defineStore('setup', () => {
     loading.value = false;
   };
 
+  const fetchTemplate = async (templateId) => {
+    if (!templateId) {
+      templateData.value = null;
+      return null;
+    }
+    try {
+      templateData.value = await apiService.getJson(`api/templates/${templateId}`);
+      return templateData.value;
+    } catch (e) {
+      console.error('Failed to load template', e);
+      templateData.value = null;
+      return null;
+    }
+  };
+
+  const saveTemplate = async (meterId, points) => {
+    if (templateSaving.value) return;
+    templateSaving.value = true;
+    try {
+      const watermeterStore = useWatermeterStore();
+      if (!['orb'].includes(watermeterStore.settings.roi_extractor)) {
+        console.error('Current extractor does not require a template');
+        return;
+      }
+      const picture = watermeterStore.lastPicture?.picture;
+      if (!picture?.data) {
+        console.error('No reference image available');
+        return;
+      }
+      let normalizedPoints = Array.isArray(points) && points.length === 4 ? points : null;
+      if (!normalizedPoints && templateData.value?.config?.display_corners?.length === 4) {
+        const corners = templateData.value.config.display_corners;
+        const imageWidth = templateData.value.image_width || 1;
+        const imageHeight = templateData.value.image_height || 1;
+        normalizedPoints = corners.map((point) => ({
+          x: point[0] / imageWidth,
+          y: point[1] / imageHeight
+        }));
+      }
+      if (!normalizedPoints) {
+        normalizedPoints = [
+          { x: 0.2, y: 0.2 },
+          { x: 0.8, y: 0.2 },
+          { x: 0.8, y: 0.8 },
+          { x: 0.2, y: 0.8 }
+        ];
+      }
+      const payload = {
+        name: meterId,
+        extractor: watermeterStore.settings.roi_extractor,
+        reference_image_base64: picture.data,
+        image_width: picture.width,
+        image_height: picture.height,
+        display_corners: normalizedPoints.map((point) => [point.x, point.y])
+      };
+      const result = await apiService.postJson('api/templates', payload);
+      if (!result?.id) {
+        console.error('Template creation failed');
+        return;
+      }
+      watermeterStore.settings.template_id = result.id;
+      await watermeterStore.updateSettings(meterId);
+      await fetchTemplate(result.id);
+      await reevaluate(meterId);
+    } catch (e) {
+      console.error('Failed to save template', e);
+    } finally {
+      templateSaving.value = false;
+    }
+  };
+
   const triggerCapture = async (meterId) => {
     if (capturing.value) return;
     capturing.value = true;
@@ -290,6 +383,9 @@ export const useSetupStore = defineStore('setup', () => {
     searchingThresholds.value = false;
     thresholdSearchResult.value = null;
     tooFewEvaluations.value = false;
+    templateSaving.value = false;
+    templateData.value = null;
+    reevaluateError.value = null;
   }
 
   return {
@@ -303,6 +399,9 @@ export const useSetupStore = defineStore('setup', () => {
     searchingThresholds,
     thresholdSearchResult,
     tooFewEvaluations,
+    templateSaving,
+    templateData,
+    reevaluateError,
     // Actions
     reset,
     redoDigitEval,
@@ -318,5 +417,7 @@ export const useSetupStore = defineStore('setup', () => {
     requestReevaluatedDigits,
     getData,
     triggerCapture,
+    fetchTemplate,
+    saveTemplate,
   };
 });

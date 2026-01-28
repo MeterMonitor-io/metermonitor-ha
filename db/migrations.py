@@ -37,6 +37,7 @@ def run_migrations(db_file):
                            extended_last_digit BOOLEAN,
                            max_flow_rate       FLOAT,
                            roi_extractor       TEXT,
+                           template_id         TEXT,
                            FOREIGN KEY (name) REFERENCES watermeters (name)
                        )
                        ''')
@@ -74,6 +75,19 @@ def run_migrations(db_file):
                 last_error TEXT,
                 created_ts TEXT DEFAULT (datetime('now')),
                 updated_ts TEXT DEFAULT (datetime('now'))
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS templates (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                reference_image_base64 TEXT NOT NULL,
+                image_width INTEGER NOT NULL,
+                image_height INTEGER NOT NULL,
+                config_json TEXT NOT NULL,
+                precomputed_data_base64 TEXT
             )
         ''')
         # For <= 1.2.3: Add outdated bool to evaluations table if it doesn't exist yet
@@ -276,6 +290,15 @@ def run_migrations(db_file):
             ''')
             print("[MIGRATION] Added 'roi_extractor' column to 'settings' table")
 
+        cursor.execute("PRAGMA table_info(settings)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'template_id' not in columns:
+            cursor.execute('''
+                ALTER TABLE settings
+                ADD COLUMN template_id TEXT DEFAULT NULL
+            ''')
+            print("[MIGRATION] Added 'template_id' column to 'settings' table")
+
         # add a column "denied_digits" to the evaluations table ([FALSE, FALSE, ...] as JSON string with length of digits as default)
         cursor.execute("PRAGMA table_info(evaluations)")
         columns = [info[1] for info in cursor.fetchall()]
@@ -399,4 +422,3 @@ def run_migrations(db_file):
         if 'use_correctional_alg' not in columns:
             cursor.execute("ALTER TABLE watermeters ADD COLUMN use_correctional_alg BOOLEAN DEFAULT true")
             print("[MIGRATION] Added 'use_correctional_alg' column to 'evaluations' table")
-

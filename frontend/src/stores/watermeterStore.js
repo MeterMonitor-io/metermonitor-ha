@@ -23,6 +23,7 @@ export const useWatermeterStore = defineStore('watermeter', () => {
     max_flow_rate: 1.0,
     conf_threshold: null,
     roi_extractor: 'yolo',
+    template_id: null,
   });
 
   // Actions
@@ -73,7 +74,8 @@ export const useWatermeterStore = defineStore('watermeter', () => {
       rotated_180: data.rotated_180 === 1,
       max_flow_rate: data.max_flow_rate,
       conf_threshold: data.conf_threshold,
-      roi_extractor: data.roi_extractor || 'yolo'
+      roi_extractor: data.roi_extractor || 'yolo',
+      template_id: data.template_id || null
     });
 
     return data;
@@ -93,6 +95,7 @@ export const useWatermeterStore = defineStore('watermeter', () => {
       max_flow_rate: settings.max_flow_rate,
       conf_threshold: settings.conf_threshold,
       roi_extractor: settings.roi_extractor,
+      template_id: settings.template_id,
     };
 
     await apiService.put(`api/watermeters/${meterId}/settings`, payload);
@@ -102,9 +105,6 @@ export const useWatermeterStore = defineStore('watermeter', () => {
     const data = await apiService.getJson('api/sources');
     const meterSource = data.sources.find(s => s.name === meterId);
     source.value = meterSource || null;
-
-    console.log("Fetched source:", meterSource);
-
     return meterSource;
   };
 

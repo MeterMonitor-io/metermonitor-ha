@@ -8,6 +8,10 @@
         <span class="range-value">{{ formatUsage(usageTo) }}</span>
         <span class="range-spacer"></span>
         <span class="range-duration">{{ durationLabel }}</span>
+        <span class="range-dot">·</span>
+        <span class="range-confidence">avg {{ averageConfidence }}</span>
+        <span class="range-dot">·</span>
+        <span class="range-confidence">median {{ medianConfidence }}</span>
       </div>
       <apexchart
         v-if="combinedSeries.length > 0"
@@ -126,6 +130,28 @@ const durationLabel = computed(() => {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+});
+
+const confidenceValues = computed(() => {
+  return sortedHistory.value
+    .map((item) => item[2])
+    .filter((value) => value !== null && value !== undefined)
+    .map((value) => Number(value) * 100)
+    .filter((value) => !Number.isNaN(value));
+});
+
+const averageConfidence = computed(() => {
+  if (confidenceValues.value.length === 0) return '—';
+  const sum = confidenceValues.value.reduce((acc, value) => acc + value, 0);
+  return `${(sum / confidenceValues.value.length).toFixed(1)}%`;
+});
+
+const medianConfidence = computed(() => {
+  if (confidenceValues.value.length === 0) return '—';
+  const sorted = [...confidenceValues.value].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return `${median.toFixed(1)}%`;
 });
 
 const leftTimestamp = computed(() => formatShortDate(sortedHistory.value[0]?.[1]));
@@ -267,6 +293,15 @@ const combinedChartOptions = computed(() => ({
 }
 
 .range-duration {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.range-dot {
+  opacity: 0.5;
+}
+
+.range-confidence {
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }

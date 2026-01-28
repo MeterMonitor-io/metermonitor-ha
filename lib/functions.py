@@ -7,6 +7,7 @@ from io import BytesIO
 import numpy as np
 
 from lib.history_correction import correct_value
+from lib.meter_processing.roi_extractors.orb_extractor import ORBExtractor
 
 def reevaluate_digits(db_file: str, name: str, meter_preditor, config, offset: int = None):
     with sqlite3.connect(db_file) as conn:
@@ -89,6 +90,7 @@ def reevaluate_digits(db_file: str, name: str, meter_preditor, config, offset: i
 def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, publish: bool = False, skip_setup_overwriting = True, mqtt_client = None):
     with sqlite3.connect(db_file) as conn:
         cursor = conn.cursor()
+        meter_preditor.last_error = None
 
         # get latest image from watermeter
         cursor.execute("SELECT picture_data, picture_timestamp, setup FROM watermeters WHERE name = ? ORDER BY picture_number DESC LIMIT 1", (name,))
@@ -104,7 +106,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         # Get current settings for the watermeter
         cursor.execute('''
                    SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding,
-                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor
+                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor, template_id
                    FROM settings
                    WHERE name = ?
                ''', (name,))
@@ -119,6 +121,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         rotated_180 = settings[9]
         conf_threshold = settings[10] if settings[10] else 0.0
         roi_extractor = settings[11] if settings[11] else "yolo"
+        template_id = settings[12] if settings[12] else None
 
         # Get the target_brightness from the last history entry
         cursor.execute("SELECT target_brightness FROM history WHERE name = ? ORDER BY ROWID DESC LIMIT 1", (name,))
@@ -130,6 +133,20 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         image = Image.open(BytesIO(image_data))
 
         # Use the meter predictor to extract the digits from the image
+        extractor_instance = None
+        if roi_extractor in {"orb"}:
+            if not template_id:
+                print(f"[Eval ({name})] Template required for extractor '{roi_extractor}' but none is set.")
+                meter_preditor.last_error = f"Template required for extractor '{roi_extractor}'."
+                return None
+            try:
+                if roi_extractor == "orb":
+                    extractor_instance = ORBExtractor.from_database(conn, template_id)
+            except Exception as e:
+                print(f"[Eval ({name})] Failed to load template '{template_id}': {e}")
+                meter_preditor.last_error = f"Failed to load template: {e}"
+                return None
+
         result, digits, target_brightness, boundingboxed_image = meter_preditor.extract_display_and_segment(
             image,
             segments=segments,
@@ -137,11 +154,14 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
             extended_last_digit=extended_last_digit,
             rotated_180=rotated_180,
             target_brightness=target_brightness,
-            roi_extractor=roi_extractor
+            roi_extractor=roi_extractor,
+            extractor_instance=extractor_instance
         )
 
         if not result or len(result) == 0:
             print(f"[Eval ({name})] No result found")
+            if not meter_preditor.last_error:
+                meter_preditor.last_error = "No result found"
             return None
 
         # Apply thresholds and extract the digits

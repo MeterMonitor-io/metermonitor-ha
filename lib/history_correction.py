@@ -26,7 +26,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
         rows = cursor.fetchall()
         if len(rows) == 0:
             denied_digits = new_eval[4]
-            metadata["denied_digits_count"] = sum(denied_digits) if denied_digits else 0
+            metadata["denied_digits_count"] = sum(denied_digits) if denied_digits is not None and len(denied_digits) > 0 else 0
             metadata["rejection_reason"] = "no_history"
             conn.commit()
             return {
@@ -51,7 +51,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
 
         new_results = new_eval[2]
         denied_digits = new_eval[4]
-        metadata["denied_digits_count"] = sum(denied_digits) if denied_digits else 0
+        metadata["denied_digits_count"] = sum(denied_digits) if denied_digits is not None and len(denied_digits) > 0 else 0
 
         if last_time >= new_time:
             print(f"[CorrectionAlg ({name})] Time difference to last message is negative, assuming current time for correction")
@@ -115,7 +115,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
                         prediction_rank_used_counts[prediction_index] += 1
                     if chosen_digit != lastChar:
                         digits_changed_vs_last += 1
-                    if predictions and chosen_digit != predictions[0][0]:
+                    if predictions is not None and len(predictions) > 0 and chosen_digit != predictions[0][0]:
                         digits_changed_vs_top_pred += 1
                     break
 
@@ -136,7 +136,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
                                 prediction_rank_used_counts[prediction_index] += 1
                             if chosen_digit != lastChar:
                                 digits_changed_vs_last += 1
-                            if predictions and chosen_digit != predictions[0][0]:
+                            if predictions is not None and len(predictions) > 0 and chosen_digit != predictions[0][0]:
                                 digits_changed_vs_top_pred += 1
                             print(f"[CorrectionAlg ({name})] Negative correction accepted")
                             break
@@ -146,7 +146,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
                 correctedValue += lastChar
                 reject = True
                 fallback_digit_count += 1
-                if predictions and lastChar != predictions[0][0]:
+                if predictions is not None and len(predictions) > 0 and lastChar != predictions[0][0]:
                     digits_changed_vs_top_pred += 1
                 print(f"[CorrectionAlg ({name})] Fallback: appending original digit", lastChar)
 

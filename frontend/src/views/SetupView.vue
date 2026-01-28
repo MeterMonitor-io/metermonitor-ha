@@ -17,13 +17,19 @@
             :rotated180="rotated180"
             :roi-extractor="roiExtractor"
             :capturing="capturing"
+            :template-points="templatePoints"
+            :template-ready="templateReady"
+            :template-saving="templateSaving"
             :evaluation="evaluation"
             :timestamp="lastPicture ? lastPicture.picture.timestamp : ''"
             :loading="loading"
             :no-bounding-box="noBoundingBox"
+            :reevaluate-error="reevaluateError"
             @update="(newSettings) => setupStore.updateSegmentationSettings(newSettings, id)"
             @next="onSegmentationNext"
             @recapture="() => setupStore.triggerCapture(id)"
+            @update-template-points="(points) => { templatePoints.value = points }"
+            @save-template="() => setupStore.saveTemplate(id, templatePoints.value)"
         />
         </div>
         <br>
@@ -160,7 +166,7 @@ const currentlyFocusedStep = ref(1);
 
 // Get reactive state from stores
 const { lastPicture, evaluation, settings } = storeToRefs(watermeterStore);
-const { currentStep, randomExamples, noBoundingBox, loading, searchingThresholds, thresholdSearchResult, capturing } = storeToRefs(setupStore);
+const { currentStep, randomExamples, noBoundingBox, loading, searchingThresholds, thresholdSearchResult, capturing, templateSaving, templateData, reevaluateError } = storeToRefs(setupStore);
 
 const threshold = computed(() => [settings.value?.threshold_low || 0, settings.value?.threshold_high || 0]);
 const thresholdLast = computed(() => [settings.value?.threshold_last_low || 0, settings.value?.threshold_last_high || 0]);
@@ -170,8 +176,50 @@ const extendedLastDigit = computed(() => settings.value?.extended_last_digit || 
 const last3DigitsNarrow = computed(() => settings.value?.shrink_last_3 || false);
 const rotated180 = computed(() => settings.value?.rotated_180 || false);
 const roiExtractor = computed(() => settings.value?.roi_extractor || 'yolo');
+const templateId = computed(() => settings.value?.template_id || null);
+const templateReady = computed(() => !!templateId.value);
+const isTemplateExtractor = (value) => ['orb'].includes(value);
 const maxFlowRate = computed(() => settings.value?.max_flow_rate || 0);
 const confThreshold = computed(() => settings.value?.conf_threshold);
+
+const templatePoints = ref([]);
+const pendingTemplateSave = ref(false);
+
+watch(templateId, async (next) => {
+  if (!next) return;
+  await setupStore.fetchTemplate(next);
+  const template = templateData.value;
+  if (!template?.config?.display_corners || !template.image_width || !template.image_height) return;
+  templatePoints.value = template.config.display_corners.map((point) => ({
+    x: point[0] / template.image_width,
+    y: point[1] / template.image_height
+  }));
+});
+
+watch(
+  () => roiExtractor.value,
+  (nextExtractor, prevExtractor) => {
+    if (!isTemplateExtractor(nextExtractor)) {
+      pendingTemplateSave.value = false;
+      return;
+    }
+    if (nextExtractor !== prevExtractor) {
+      pendingTemplateSave.value = true;
+    }
+  }
+);
+
+watch(
+  () => [pendingTemplateSave.value, templateId.value, templateSaving.value, templatePoints.value, lastPicture.value],
+  ([pending, nextTemplateId, saving, points, picture]) => {
+    if (!pending || saving || nextTemplateId) return;
+    if (!picture?.picture?.data) return;
+    if (!points || points.length !== 4) return;
+    pendingTemplateSave.value = false;
+    setupStore.saveTemplate(id, points);
+  },
+  { deep: true }
+);
 
 // Computed property for tresholdedImages (keeping backwards compatibility)
 const tresholdedImages = computed(() => {

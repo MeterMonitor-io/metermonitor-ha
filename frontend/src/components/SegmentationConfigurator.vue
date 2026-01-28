@@ -2,7 +2,13 @@
   <n-card>
     <template #cover>
       <div class="image-container">
-        <img v-if="lastPicture && lastPicture.picture.data_bbox" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" />
+        <TemplatePointEditor
+          v-if="isTemplateExtractor && lastPicture"
+          :image-src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data"
+          :points="templatePoints"
+          @update:points="emits('updateTemplatePoints', $event)"
+        />
+        <img v-else-if="lastPicture && lastPicture.picture.data_bbox" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data_bbox" alt="Watermeter" />
         <img v-else-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data" alt="Watermeter" />
 
         <span class="timestamp-overlay">{{ formattedTimestamp }}</span>
@@ -26,24 +32,23 @@
     </template>
     <br>
 
-    <n-alert v-if="noBoundingBox" title="No bounding box found" type="warning" style="margin-bottom: 15px;">
+    <n-alert v-if="noBoundingBox && !isTemplateExtractor" title="No bounding box found" type="warning" style="margin-bottom: 15px;">
       Without a bounding box the segmentation will not work. Adjust the camera angle or lighting and try again.
     </n-alert>
+    <n-alert v-if="reevaluateError" title="Extraction failed" type="warning" style="margin-bottom: 15px;">
+      {{ reevaluateError }}
+    </n-alert>
 
-    <n-tooltip>
-      <template #trigger>
-        <span class="tooltip-trigger">
-          <n-icon size="16"><CropOutlined /></n-icon>
-          <span>ROI Extractor</span>
-        </span>
-      </template>
-      <span>Select the region-of-interest extractor</span>
-    </n-tooltip>
-    <n-select
+    <ROIExtractorSelect
       :value="currentExtractor"
       :options="extractorOptions"
       :disabled="loading"
+      :template-enabled="isTemplateExtractor"
+      :template-saving="templateSaving"
+      :template-ready="templateReady"
+      :can-save-template="!!lastPicture"
       @update:value="handleUpdate('roiExtractor', $event)"
+      @save-template="emits('saveTemplate')"
     />
     <br>
     <n-tooltip>
@@ -117,7 +122,7 @@
         <n-button
             @click="emits('next')"
             round
-            :disabled="loading"
+            :disabled="loading || (isTemplateExtractor && !templateReady)"
             :loading="loading"
         >Next</n-button>
       </n-flex>
@@ -126,15 +131,16 @@
 </template>
 
 <script setup>
-import {NCard, NFlex, NInputNumber, NSwitch, NDivider, NButton, NTooltip, NAlert, NSelect, NSpin, NIcon} from 'naive-ui';
+import {NCard, NFlex, NInputNumber, NSwitch, NDivider, NButton, NTooltip, NAlert, NSpin, NIcon} from 'naive-ui';
 import {defineProps, defineEmits, computed} from 'vue';
 import {
   AddCircleOutlineOutlined,
   CameraAltOutlined,
   CompressOutlined,
-  CropOutlined,
   RotateRightOutlined
 } from '@vicons/material';
+import TemplatePointEditor from '@/components/TemplatePointEditor.vue';
+import ROIExtractorSelect from '@/components/ROIExtractorSelect.vue';
 
 const props = defineProps([
     'lastPicture',
@@ -145,11 +151,15 @@ const props = defineProps([
     'evaluation',
     'rotated180',
     'roiExtractor',
+    'templatePoints',
+    'templateReady',
+    'templateSaving',
     'capturing',
     'loading',
-    'noBoundingBox'
+    'noBoundingBox',
+    'reevaluateError'
 ]);
-const emits = defineEmits(['update', 'next', 'recapture']);
+const emits = defineEmits(['update', 'next', 'recapture', 'updateTemplatePoints', 'saveTemplate']);
 
 const formattedTimestamp = computed(() => {
   if (!props.timestamp) return '';
@@ -165,11 +175,14 @@ const formattedTimestamp = computed(() => {
 });
 
 const extractorOptions = [
-  { label: 'YOLO - Use the YOLOv11 AI-model', value: 'yolo' },
-  { label: 'Bypass - Directly segment received images', value: 'bypass' }
+  { label: 'AUTO - Use the YOLOv11 AI-model', value: 'yolo' },
+  { label: 'BYPASS - Directly segment received images', value: 'bypass' },
+  { label: 'ORB - (Very fast) Template-based extractor', value: 'orb' }
 ];
 
 const currentExtractor = computed(() => props.roiExtractor || 'yolo');
+const isTemplateExtractor = computed(() => ['orb'].includes(currentExtractor.value));
+const hasTemplatePoints = computed(() => Array.isArray(props.templatePoints) && props.templatePoints.length === 4);
 
 const handleUpdate = (field, value) => {
   emits('update', {
@@ -233,9 +246,4 @@ const handleUpdate = (field, value) => {
   margin-bottom: 10px;
 }
 
-.tooltip-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
 </style>

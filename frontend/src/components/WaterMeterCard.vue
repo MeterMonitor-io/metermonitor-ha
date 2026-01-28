@@ -1,6 +1,6 @@
 <template>
   <n-flex vertical>
-    <n-card size="small" class="meter-card" :class="{ 'state-error': hasError, 'state-warning': !hasBB && !setup }">
+    <n-card size="small" class="meter-card" :class="{ 'state-error': hasError, 'state-warning': !hasBB && !setup }" :style="setup?'width: 375px;':''">
       <template #header>
         <div class="card-header">
           <div class="title-group">
@@ -22,6 +22,8 @@
           </div>
         </div>
       </template>
+
+      <SourceCollapse v-if="setup" :source="source"></SourceCollapse>
 
       <div class="digits-row" v-if="last_digits">
         <img
@@ -89,12 +91,14 @@
 
 <script setup>
 import {NCard, NButton, NFlex, NDropdown, NIcon, useDialog} from 'naive-ui';
-import {defineProps, computed, ref, onMounted} from 'vue';
+import {defineProps, computed, ref, onMounted, watch} from 'vue';
 import { MoreVertFilled, HomeOutlined, PublicFilled, WifiTetheringOutlined, HelpOutlineOutlined } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 import { useThemeStore } from '@/stores/themeStore';
 import { storeToRefs } from 'pinia';
 import { getSourceColor, getSourceLabel, normalizeSourceType } from '@/utils/sourceMeta';
+import SourceCollapse from "@/components/SourceCollapse.vue";
+import { apiService } from '@/services/api';
 
 const themeStore = useThemeStore();
 const { isDark } = storeToRefs(themeStore);
@@ -124,6 +128,7 @@ const sourceIcon = computed(() => {
 });
 
 const historyData = ref([]);
+const source = ref(null);
 const host = import.meta.env.VITE_HOST;
 const dialog = useDialog();
 
@@ -179,8 +184,27 @@ const loadHistory = async () => {
   }
 };
 
+const loadSource = async () => {
+  if (!props.setup) {
+    source.value = null;
+    return;
+  }
+  try {
+    const data = await apiService.getJson('api/sources');
+    source.value = data.sources?.find((item) => item.name === props.meter_name) || null;
+  } catch (e) {
+    console.error('Failed to load source for card:', e);
+    source.value = null;
+  }
+};
+
 onMounted(() => {
   loadHistory();
+  loadSource();
+});
+
+watch(() => [props.meter_name, props.setup], () => {
+  loadSource();
 });
 
 const last_updated_locale = computed(() => {
@@ -393,7 +417,7 @@ const chartOptions = computed(() => ({
 .card-note {
   margin-top: 6px;
   font-size: 12px;
-  max-width: 300px;
+  width: 277px;
   padding: 6px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.06);

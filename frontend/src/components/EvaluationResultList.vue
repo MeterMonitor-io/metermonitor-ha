@@ -275,7 +275,6 @@ watch(
 <style scoped>
 .eval-list {
   height: 100%;
-  border-radius: 15px;
   overflow-y: auto;
   overflow-x: auto;
   padding: 0;

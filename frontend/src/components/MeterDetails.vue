@@ -178,8 +178,38 @@
           <div class="chip-value">{{ settings.conf_threshold?.toFixed(2) }}%</div>
         </div>
       </div>
+      <div class="setting-chip">
+        <n-icon><CropOutlined /></n-icon>
+        <div>
+          <div class="chip-label">ROI Extractor</div>
+          <div class="chip-value">{{ extractorLabel }}</div>
+        </div>
+      </div>
     </div>
   </div>
+
+  <n-modal v-model:show="editRoiOpen" preset="card" title="Edit ROI" style="width: 720px;">
+    <div v-if="editRoiLoading" class="modal-loading">
+      <n-spin size="small" />
+      <span>Loading template…</span>
+    </div>
+    <div v-else class="modal-body">
+      <TemplatePointEditor
+        v-if="data?.picture?.data"
+        :image-src="'data:image/' + data.picture.format + ';base64,' + data.picture.data"
+        :points="roiPoints"
+        @update:points="(points) => { roiPoints.value = points }"
+      />
+      <div v-else class="modal-note">No reference image available.</div>
+    </div>
+    <div v-if="editRoiError" class="modal-error">{{ editRoiError }}</div>
+    <template #action>
+      <n-space justify="end">
+        <n-button @click="editRoiOpen = false">Cancel</n-button>
+        <n-button type="primary" :loading="editRoiSaving" @click="saveRoiTemplate">Save</n-button>
+      </n-space>
+    </template>
+  </n-modal>
 </template>
 
 <script setup>
@@ -195,7 +225,8 @@ import {
   NSpace,
   useDialog,
   NSpin,
-  NGi
+  NGi,
+  NModal
 } from "naive-ui";
 import {
   DeleteForeverFilled,
@@ -222,6 +253,8 @@ import WifiStatus from "@/components/WifiStatus.vue";
 import {useWatermeterStore} from "@/stores/watermeterStore";
 import SourceCollapse from "@/components/SourceCollapse.vue";
 import MeterCharts from "@/components/MeterCharts.vue";
+import TemplatePointEditor from "@/components/TemplatePointEditor.vue";
+import { apiService } from '@/services/api';
 
 const props = defineProps({
   data: Object,
@@ -235,6 +268,11 @@ const store = useWatermeterStore();
 const dialog = useDialog();
 const emit = defineEmits(['resetToSetup', 'deleteMeter', 'clearEvaluations', 'downloadDataset', 'deleteDataset', 'triggerCapture']);
 const showBbox = ref(true);
+const editRoiOpen = ref(false);
+const editRoiLoading = ref(false);
+const editRoiSaving = ref(false);
+const editRoiError = ref('');
+const roiPoints = ref([]);
 
 const sourceForView = computed(() => {
   if (store.source) return store.source;
@@ -260,6 +298,13 @@ const menuOptions = computed(() => {
       icon: () => h(NIcon, null, { default: () => h(CameraAltOutlined) })
     });
   }
+  if (props.settings?.roi_extractor === 'orb') {
+    options.push({
+      label: 'Edit ROI',
+      key: 'edit-roi',
+      icon: () => h(NIcon, null, { default: () => h(CropOutlined) })
+    });
+  }
   options.push(
     { label: 'Setup', key: 'setup', icon: () => h(NIcon, null, { default: () => h(SettingsOutlined) }) },
     { label: 'Clear Evals', key: 'clear-evals', icon: () => h(NIcon, null, { default: () => h(PlaylistRemoveOutlined) }) },
@@ -270,6 +315,10 @@ const menuOptions = computed(() => {
 });
 
 const handleMenuSelect = (key) => {
+  if (key === 'edit-roi') {
+    openEditRoi();
+    return;
+  }
   if (key === 'capture') {
     dialog.warning({
       title: 'Trigger Capture',
@@ -310,6 +359,92 @@ const handleMenuSelect = (key) => {
     });
   }
 };
+
+const openEditRoi = async () => {
+  editRoiError.value = '';
+  editRoiOpen.value = true;
+  editRoiLoading.value = true;
+  roiPoints.value = [];
+  try {
+    if (props.settings?.template_id) {
+      const template = await apiService.getJson(`api/templates/${props.settings.template_id}`);
+      if (template?.config?.display_corners?.length === 4 && template.image_width && template.image_height) {
+        roiPoints.value = template.config.display_corners.map((point) => ({
+          x: point[0] / template.image_width,
+          y: point[1] / template.image_height
+        }));
+      }
+    }
+    if (roiPoints.value.length === 0) {
+      roiPoints.value = [
+        { x: 0.2, y: 0.2 },
+        { x: 0.8, y: 0.2 },
+        { x: 0.8, y: 0.8 },
+        { x: 0.2, y: 0.8 }
+      ];
+    }
+  } catch (e) {
+    editRoiError.value = 'Failed to load template.';
+  } finally {
+    editRoiLoading.value = false;
+  }
+};
+
+const saveRoiTemplate = async () => {
+  if (editRoiSaving.value) return;
+  editRoiError.value = '';
+  if (!props.settings || props.settings.roi_extractor !== 'orb') {
+    editRoiError.value = 'ROI extractor does not support templates.';
+    return;
+  }
+  if (!props.data?.picture?.data) {
+    editRoiError.value = 'No reference image available.';
+    return;
+  }
+  if (!roiPoints.value || roiPoints.value.length !== 4) {
+    editRoiError.value = 'Template requires 4 points.';
+    return;
+  }
+  editRoiSaving.value = true;
+  try {
+    const payload = {
+      name: props.id,
+      extractor: props.settings.roi_extractor,
+      reference_image_base64: props.data.picture.data,
+      image_width: props.data.picture.width,
+      image_height: props.data.picture.height,
+      display_corners: roiPoints.value.map((point) => [point.x, point.y])
+    };
+    const result = await apiService.postJson('api/templates', payload);
+    if (result?.id) {
+      store.settings.roi_extractor = 'orb';
+      store.settings.template_id = result.id;
+      await store.updateSettings(props.id);
+      const updated = await store.fetchSettings(props.id);
+      if (updated?.template_id !== result.id) {
+        editRoiError.value = 'Template was saved but not applied to settings.';
+        return;
+      }
+      await apiService.post(`api/watermeters/${props.id}/evaluations/reevaluate`);
+      await store.fetchAll(props.id);
+      editRoiOpen.value = false;
+    } else {
+      editRoiError.value = 'Failed to save template.';
+    }
+  } catch (e) {
+    editRoiError.value = 'Failed to save template.';
+  } finally {
+    editRoiSaving.value = false;
+  }
+};
+
+const extractorLabel = computed(() => {
+  const value = props.settings?.roi_extractor || 'yolo';
+  if (value === 'orb') return 'ORB (Template)';
+  if (value === 'bypass') return 'Bypass';
+  if (value === 'yolo') return 'AUTO (YOLO)';
+  return value.toUpperCase();
+});
 
 const formattedTimestamp = computed(() => {
   if (!props.data?.picture?.timestamp) return '';
@@ -465,5 +600,27 @@ const formattedTimestamp = computed(() => {
 .chip-value {
   font-size: 14px;
   font-weight: 600;
+}
+
+.modal-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.modal-body {
+  padding-top: 6px;
+}
+
+.modal-note {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.modal-error {
+  margin-top: 8px;
+  color: #d03050;
+  font-size: 12px;
 }
 </style>

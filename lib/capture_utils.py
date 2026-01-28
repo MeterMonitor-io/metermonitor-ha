@@ -195,7 +195,7 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
             # Also insert default settings
             cursor.execute('''
                 INSERT OR IGNORE INTO settings
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 name,
                 0,
@@ -209,7 +209,8 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
                 False,
                 1.0,
                 None,
-                "yolo"
+                "yolo",
+                None
             ))
 
         conn.commit()
@@ -277,8 +278,21 @@ def capture_and_process_source(config, db_file, source_row, meter_predictor):
     except Exception as e:
         error_msg = str(e)
         print(f"[CAPTURE] Failed to capture source {source_row['name']}: {error_msg}")
-        # Update source with error
+        # Update source with error, and only set last_success_ts when it is missing
         with sqlite3.connect(db_file) as conn:
             cursor = conn.cursor()
-            cursor.execute("UPDATE sources SET last_error = ? WHERE id = ?", (error_msg, source_row['id']))
+            cursor.execute("SELECT last_success_ts FROM sources WHERE id = ?", (source_row['id'],))
+            row = cursor.fetchone()
+            last_success_ts = row[0] if row else None
+            if last_success_ts:
+                cursor.execute(
+                    "UPDATE sources SET last_error = ? WHERE id = ?",
+                    (error_msg, source_row['id'])
+                )
+            else:
+                now = datetime.datetime.now().isoformat()
+                cursor.execute(
+                    "UPDATE sources SET last_error = ?, last_success_ts = ? WHERE id = ?",
+                    (error_msg, now, source_row['id'])
+                )
             conn.commit()

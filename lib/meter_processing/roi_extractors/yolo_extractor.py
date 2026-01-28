@@ -15,6 +15,7 @@ class YOLOExtractor(ROIExtractor):
         self.extended_last_digit = extended_last_digit
 
     def extract(self, input_image):
+        self.last_error = None
         print("[ROIExtractor (YOLO)] Running YOLO region-of-interest detection...")
 
         img_np = np.array(input_image)
@@ -38,7 +39,8 @@ class YOLOExtractor(ROIExtractor):
         try:
             outputs = self.yolo_session.run(None, {self.yolo_input_name: img_batch})
         except Exception as e:
-            print(f"[ROIExtractor (YOLO)] YOLO inference failed: {e}")
+            self.last_error = f"YOLO inference failed: {e}"
+            print(f"[ROIExtractor (YOLO)] {self.last_error}")
             return None, None, None
 
         output = outputs[0]
@@ -47,7 +49,8 @@ class YOLOExtractor(ROIExtractor):
 
         predictions = output[0]
         if predictions.shape[1] < 6:
-            print("[ROIExtractor (YOLO)] Invalid YOLO output shape.")
+            self.last_error = "Invalid YOLO output shape."
+            print(f"[ROIExtractor (YOLO)] {self.last_error}")
             return None, None, None
 
         if predictions.shape[1] == 6:
@@ -85,7 +88,8 @@ class YOLOExtractor(ROIExtractor):
 
         valid_mask = confidences > 0.15
         if not np.any(valid_mask):
-            print("[ROIExtractor (YOLO)] No instances detected with confidence > 0.15")
+            self.last_error = "No instances detected with confidence > 0.15"
+            print(f"[ROIExtractor (YOLO)] {self.last_error}")
             return None, None, None
 
         valid_predictions = predictions[valid_mask]
@@ -159,7 +163,8 @@ class YOLOExtractor(ROIExtractor):
         max_height = max(int(height_a), int(height_b))
 
         if max_width <= 0 or max_height <= 0:
-            print("[ROIExtractor (YOLO)] Invalid ROI size.")
+            self.last_error = "Invalid ROI size."
+            print(f"[ROIExtractor (YOLO)] {self.last_error}")
             return None, None, None
 
         dst_points = np.array([

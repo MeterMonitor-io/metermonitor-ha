@@ -7,6 +7,7 @@ import tempfile
 
 import numpy as np
 from PIL import Image
+import cv2
 from fastapi import FastAPI, HTTPException, Body, Header, Depends
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,6 +21,8 @@ import urllib.request
 import urllib.error
 import socket
 import time
+import uuid
+from datetime import datetime
 
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse, FileResponse, StreamingResponse
@@ -31,6 +34,7 @@ from lib.global_alerts import get_alerts, add_alert
 from lib.ha_auth import get_ha_token, add_ha_auth_header
 from lib.threshold_optimizer import search_thresholds_for_meter
 from lib.capture_utils import capture_and_process_source, capture_from_ha_source, capture_from_http_source
+from lib.meter_processing.roi_extractors.orb_extractor import ORBExtractor
 
 
 # http server class
@@ -103,6 +107,7 @@ def prepare_setup_app(config, lifespan):
         max_flow_rate: float
         conf_threshold: float
         roi_extractor: Optional[str] = None
+        template_id: Optional[str] = None
 
     class CaptureNowRequest(BaseModel):
         cam_entity_id: Optional[str] = None
@@ -125,6 +130,15 @@ def prepare_setup_app(config, lifespan):
         max_flow_rate: float
         conf_threshold: Optional[float] = None
         roi_extractor: Optional[str] = None
+        template_id: Optional[str] = None
+
+    class TemplateCreateRequest(BaseModel):
+        name: str
+        extractor: str
+        reference_image_base64: str
+        image_width: int
+        image_height: int
+        display_corners: List[List[float]]
 
     class EvalRequest(BaseModel):
         eval: str
@@ -190,9 +204,9 @@ def prepare_setup_app(config, lifespan):
 
             cur.execute('''
                            INSERT OR IGNORE INTO settings
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ''', (
-                               meter_name,0,100,0,100,20,7,False,False,False,1.0,None,"yolo"
+                               meter_name,0,100,0,100,20,7,False,False,False,1.0,None,"yolo",None
                            ))
 
     def _normalize_source_type(source_type: str) -> str:
@@ -330,6 +344,114 @@ def prepare_setup_app(config, lifespan):
             raise HTTPException(status_code=404, detail="Source not found")
         db.commit()
         return {"message": "Source deleted", "id": source_id}
+
+    @app.post("/api/templates", dependencies=[Depends(authenticate)])
+    def create_template(payload: TemplateCreateRequest):
+        if len(payload.display_corners) != 4:
+            raise HTTPException(status_code=400, detail="display_corners must contain 4 points")
+        if not payload.reference_image_base64:
+            raise HTTPException(status_code=400, detail="reference_image_base64 is required")
+
+        try:
+            img_bytes = base64.b64decode(payload.reference_image_base64)
+            img_np = np.frombuffer(img_bytes, np.uint8)
+            reference_image = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid reference image: {e}")
+
+        if reference_image is None:
+            raise HTTPException(status_code=400, detail="Failed to decode reference image")
+
+        points = np.array(payload.display_corners, dtype=np.float32)
+        max_val = float(np.max(points))
+        if max_val <= 2.0:
+            points[:, 0] *= payload.image_width
+            points[:, 1] *= payload.image_height
+
+        width_a = np.linalg.norm(points[0] - points[1])
+        width_b = np.linalg.norm(points[2] - points[3])
+        height_a = np.linalg.norm(points[0] - points[3])
+        height_b = np.linalg.norm(points[1] - points[2])
+        target_width = max(int(width_a), int(width_b))
+        target_height = max(int(height_a), int(height_b))
+        target_width_ext = int(target_width * 1.2)
+        target_height_ext = int(target_height * 1.2)
+
+        config_dict = {
+            "display_corners": points.tolist(),
+            "target_width": target_width,
+            "target_height": target_height,
+            "target_width_ext": target_width_ext,
+            "target_height_ext": target_height_ext
+        }
+
+        extractor_type = (payload.extractor or "").lower()
+        if extractor_type not in {"orb"}:
+            raise HTTPException(status_code=400, detail="Invalid extractor type for templates")
+
+        try:
+            extractor = ORBExtractor(reference_image, config_dict)
+            ref_b64, config_json, precomputed_b64 = extractor.serialize_template()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to create template: {e}")
+
+        template_id = str(uuid.uuid4())
+        created_at = datetime.utcnow().isoformat()
+
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute(
+            """
+            INSERT INTO templates
+            (id, name, created_at, reference_image_base64, image_width, image_height, config_json, precomputed_data_base64)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                template_id,
+                payload.name,
+                created_at,
+                ref_b64,
+                payload.image_width,
+                payload.image_height,
+                config_json,
+                precomputed_b64
+            )
+        )
+        db.commit()
+
+        return {"id": template_id, "name": payload.name}
+
+    @app.get("/api/templates/{template_id}", dependencies=[Depends(authenticate)])
+    def get_template(template_id: str):
+        db = db_connection()
+        cur = db.cursor()
+        cur.execute(
+            """
+            SELECT id, name, created_at, reference_image_base64, image_width, image_height, config_json, precomputed_data_base64
+            FROM templates
+            WHERE id = ?
+            """,
+            (template_id,)
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        config = {}
+        try:
+            config = json.loads(row[6]) if row[6] else {}
+        except Exception:
+            config = {}
+
+        return {
+            "id": row[0],
+            "name": row[1],
+            "created_at": row[2],
+            "reference_image_base64": row[3],
+            "image_width": row[4],
+            "image_height": row[5],
+            "config": config
+        }
 
     @app.post("/api/sources/{source_id}/capture", dependencies=[Depends(authenticate)])
     def trigger_source_capture(source_id: int):
@@ -643,7 +765,7 @@ def prepare_setup_app(config, lifespan):
         db.row_factory = sqlite3.Row
         cur = db.cursor()
         cur.execute(
-            "SELECT name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, rotated_180, shrink_last_3, extended_last_digit, max_flow_rate, conf_threshold, roi_extractor "
+            "SELECT name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, rotated_180, shrink_last_3, extended_last_digit, max_flow_rate, conf_threshold, roi_extractor, template_id "
             "FROM settings ORDER BY name"
         )
         out = [dict(row) for row in cur.fetchall()]
@@ -654,9 +776,9 @@ def prepare_setup_app(config, lifespan):
         db = db_connection()
         cur = db.cursor()
         cur.execute(
-            "INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, rotated_180, shrink_last_3, extended_last_digit, max_flow_rate, conf_threshold, roi_extractor) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (payload.name, payload.threshold_low, payload.threshold_high, payload.threshold_last_low, payload.threshold_last_high, payload.islanding_padding, payload.segments, 1 if payload.rotated_180 else 0, 1 if payload.shrink_last_3 else 0, 1 if payload.extended_last_digit else 0, payload.max_flow_rate, payload.conf_threshold, payload.roi_extractor or "yolo"),
+            "INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, rotated_180, shrink_last_3, extended_last_digit, max_flow_rate, conf_threshold, roi_extractor, template_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (payload.name, payload.threshold_low, payload.threshold_high, payload.threshold_last_low, payload.threshold_last_high, payload.islanding_padding, payload.segments, 1 if payload.rotated_180 else 0, 1 if payload.shrink_last_3 else 0, 1 if payload.extended_last_digit else 0, payload.max_flow_rate, payload.conf_threshold, payload.roi_extractor or "yolo", payload.template_id),
         )
         db.commit()
         return {"message": "Settings created"}
@@ -670,9 +792,14 @@ def prepare_setup_app(config, lifespan):
         if row is None:
             raise HTTPException(status_code=404, detail="Settings not found")
 
+        roi_extractor = payload.roi_extractor or "yolo"
+        template_id = payload.template_id
+        if roi_extractor not in {"orb"}:
+            template_id = None
+
         cur.execute(
-            "UPDATE settings SET threshold_low = ?, threshold_high = ?, threshold_last_low = ?, threshold_last_high = ?, islanding_padding = ?, segments = ?, rotated_180 = ?, shrink_last_3 = ?, extended_last_digit = ?, max_flow_rate = ?, conf_threshold = ?, roi_extractor = ? WHERE name = ?",
-            (payload.threshold_low, payload.threshold_high, payload.threshold_last_low, payload.threshold_last_high, payload.islanding_padding, payload.segments, 1 if payload.rotated_180 else 0, 1 if payload.shrink_last_3 else 0, 1 if payload.extended_last_digit else 0, payload.max_flow_rate, payload.conf_threshold, payload.roi_extractor or "yolo", name),
+            "UPDATE settings SET threshold_low = ?, threshold_high = ?, threshold_last_low = ?, threshold_last_high = ?, islanding_padding = ?, segments = ?, rotated_180 = ?, shrink_last_3 = ?, extended_last_digit = ?, max_flow_rate = ?, conf_threshold = ?, roi_extractor = ?, template_id = ? WHERE name = ?",
+            (payload.threshold_low, payload.threshold_high, payload.threshold_last_low, payload.threshold_last_high, payload.islanding_padding, payload.segments, 1 if payload.rotated_180 else 0, 1 if payload.shrink_last_3 else 0, 1 if payload.extended_last_digit else 0, payload.max_flow_rate, payload.conf_threshold, roi_extractor, template_id, name),
         )
         db.commit()
         return {"message": "Settings updated"}
@@ -928,6 +1055,13 @@ def prepare_setup_app(config, lifespan):
                     dataset_present = True
                     break
 
+        picture_data = row[8]
+        picture_bbox = row[10]
+        if isinstance(picture_data, (bytes, bytearray)):
+            picture_data = base64.b64encode(picture_data).decode('utf-8')
+        if isinstance(picture_bbox, (bytes, bytearray)):
+            picture_bbox = base64.b64encode(picture_bbox).decode('utf-8')
+
         return {
             "name": row[0],
             "picture_number": row[1],
@@ -938,8 +1072,8 @@ def prepare_setup_app(config, lifespan):
                 "width": row[5],
                 "height": row[6],
                 "length": row[7],
-                "data": row[8],
-                "data_bbox": row[10]
+                "data": picture_data,
+                "data_bbox": picture_bbox
             },
             "dataset_present": dataset_present
         }
@@ -987,7 +1121,7 @@ def prepare_setup_app(config, lifespan):
     def get_settings(name: str):
         cursor = db_connection().cursor()
         cursor.execute(
-            "SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor FROM settings WHERE name = ?",
+            "SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor, template_id FROM settings WHERE name = ?",
             (name,))
         row = cursor.fetchone()
         if not row:
@@ -1004,7 +1138,8 @@ def prepare_setup_app(config, lifespan):
             "max_flow_rate": row[8],
             "rotated_180": row[9],
             "conf_threshold": row[10],
-            "roi_extractor": row[11]
+            "roi_extractor": row[11],
+            "template_id": row[12]
         }
 
     @app.post("/api/settings", dependencies=[Depends(authenticate)])
@@ -1015,8 +1150,8 @@ def prepare_setup_app(config, lifespan):
             """
             INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high,
                                   islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate,
-                                  rotated_180, conf_threshold, roi_extractor)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  rotated_180, conf_threshold, roi_extractor, template_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET threshold_low=excluded.threshold_low,
                                             threshold_high=excluded.threshold_high,
                                             threshold_last_low=excluded.threshold_last_low,
@@ -1028,12 +1163,13 @@ def prepare_setup_app(config, lifespan):
                                             max_flow_rate=excluded.max_flow_rate,
                                             rotated_180=excluded.rotated_180,
                                             conf_threshold=excluded.conf_threshold,
-                                            roi_extractor=excluded.roi_extractor
+                                            roi_extractor=excluded.roi_extractor,
+                                            template_id=excluded.template_id
             """,
             (settings.name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low,
              settings.threshold_last_high, settings.islanding_padding,
              settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate,
-             settings.rotated_180, settings.conf_threshold, settings.roi_extractor or "yolo")
+             settings.rotated_180, settings.conf_threshold, settings.roi_extractor or "yolo", settings.template_id)
         )
         db.commit()
         return {"message": "Thresholds set", "name": settings.name}
@@ -1046,8 +1182,8 @@ def prepare_setup_app(config, lifespan):
             """
             INSERT INTO settings (name, threshold_low, threshold_high, threshold_last_low, threshold_last_high,
                                   islanding_padding, segments, shrink_last_3, extended_last_digit, max_flow_rate,
-                                  rotated_180, conf_threshold, roi_extractor)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  rotated_180, conf_threshold, roi_extractor, template_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(name) DO UPDATE SET threshold_low=excluded.threshold_low,
                                             threshold_high=excluded.threshold_high,
                                             threshold_last_low=excluded.threshold_last_low,
@@ -1059,12 +1195,13 @@ def prepare_setup_app(config, lifespan):
                                             max_flow_rate=excluded.max_flow_rate,
                                             rotated_180=excluded.rotated_180,
                                             conf_threshold=excluded.conf_threshold,
-                                            roi_extractor=excluded.roi_extractor
+                                            roi_extractor=excluded.roi_extractor,
+                                            template_id=excluded.template_id
             """,
             (name, settings.threshold_low, settings.threshold_high, settings.threshold_last_low,
              settings.threshold_last_high, settings.islanding_padding,
              settings.segments, settings.shrink_last_3, settings.extended_last_digit, settings.max_flow_rate,
-             settings.rotated_180, settings.conf_threshold, settings.roi_extractor or "yolo")
+             settings.rotated_180, settings.conf_threshold, settings.roi_extractor or "yolo", settings.template_id)
         )
         db.commit()
         return {"message": "Settings updated", "name": name}
@@ -1119,7 +1256,8 @@ def prepare_setup_app(config, lifespan):
     def reevaluate_latest(name: str):
         try:
             r = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False)
-            if r is None: return {"result": False}
+            if r is None:
+                return {"result": False, "error": meter_preditor.last_error or "No result found"}
             _, _, bbox_base64 = r
 
             # update in watermeters table

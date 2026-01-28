@@ -11,6 +11,7 @@ from lib.meter_processing.roi_extractors.base import ROIExtractor
 class BypassExtractor(ROIExtractor):
     def extract(self, input_image):
         print("[ROIExtractor (Bypass)] Bypassing region-of-interest detection...")
+        self.last_error = None
         img_np = np.array(input_image)
         height, width = img_np.shape[:2]
 

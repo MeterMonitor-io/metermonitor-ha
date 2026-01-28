@@ -199,7 +199,9 @@ async function thresholdImage(base64, threshold, islanding_padding = 0) {
   width: 18px;
   height: auto;
 }
+
 .th {
   border: 1px solid rgba(255, 255, 255, 0.16);
+  mix-blend-mode: screen;
 }
 </style>
