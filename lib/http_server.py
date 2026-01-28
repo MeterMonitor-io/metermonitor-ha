@@ -30,7 +30,7 @@ from lib.model_singleton import get_meter_predictor
 from lib.global_alerts import get_alerts, add_alert
 from lib.ha_auth import get_ha_token, add_ha_auth_header
 from lib.threshold_optimizer import search_thresholds_for_meter
-from lib.capture_utils import capture_and_process_source, capture_from_ha_source
+from lib.capture_utils import capture_and_process_source, capture_from_ha_source, capture_from_http_source
 
 
 # http server class
@@ -104,9 +104,12 @@ def prepare_setup_app(config, lifespan):
         conf_threshold: float
 
     class CaptureNowRequest(BaseModel):
-        cam_entity_id: str
+        cam_entity_id: Optional[str] = None
         flash_entity_id: Optional[str] = None
         flash_delay_ms: Optional[int] = None
+        http_url: Optional[str] = None
+        http_headers: Optional[dict] = None
+        http_body: Optional[str] = None
 
     class SettingsUpdateRequest(BaseModel):
         threshold_low: int
@@ -248,7 +251,19 @@ def prepare_setup_app(config, lifespan):
                     raise HTTPException(status_code=400, detail="config.flash_delay_ms must be between 0 and 10000")
 
         if st in {"http"}:
-            return HTTPException(status_code=400, detail="Source type http not yet implemented")
+            if not payload.config or not payload.config.get("url"):
+                raise HTTPException(status_code=400, detail="Missing config.url")
+            url = payload.config.get("url", "")
+            if not isinstance(url, str) or not (url.startswith("http://") or url.startswith("https://")):
+                raise HTTPException(status_code=400, detail="config.url must start with http:// or https://")
+            headers = payload.config.get("headers")
+            if headers is not None and not isinstance(headers, dict):
+                raise HTTPException(status_code=400, detail="config.headers must be an object")
+            body = payload.config.get("body")
+            if body is not None and not isinstance(body, str):
+                raise HTTPException(status_code=400, detail="config.body must be a string")
+            if payload.poll_interval_s is None:
+                raise HTTPException(status_code=400, detail="poll_interval_s is required for http")
 
         if st in {"mqtt"}:
             return HTTPException(status_code=400, detail="Source type mqtt cannot be created via HTTP API")
@@ -270,7 +285,7 @@ def prepare_setup_app(config, lifespan):
         try:
             cur.execute("SELECT * FROM sources WHERE name = ? AND source_type = ?", (payload.name, st))
             source_row = cur.fetchone()
-            if source_row and st == 'ha_camera':
+            if source_row and st in {'ha_camera', 'http'}:
                 capture_and_process_source(config, config['dbfile'], source_row, meter_preditor)
         except Exception as e:
             print(f"[ERROR] Initial capture processing failed for source {payload.name}: {e}")
@@ -581,28 +596,43 @@ def prepare_setup_app(config, lifespan):
 
     @app.post('/api/capture-now', dependencies=[Depends(authenticate)])
     def capture_now(payload: CaptureNowRequest):
-        cam_entity_id = payload.cam_entity_id
-        flash_entity_id = payload.flash_entity_id
-        flash_delay_ms = payload.flash_delay_ms or 10000  # default if not provided
-
         try:
+            if payload.http_url:
+                raw, itype, _ = capture_from_http_source({
+                    'url': payload.http_url,
+                    'headers': payload.http_headers,
+                    'body': payload.http_body,
+                })
+                b64 = base64.b64encode(raw).decode('utf-8')
+                return {
+                    "result": True,
+                    "data": b64,
+                    "format": itype,
+                    "flash_used": False,
+                }
+
+            cam_entity_id = payload.cam_entity_id
+            if not cam_entity_id:
+                raise HTTPException(status_code=400, detail="cam_entity_id or http_url is required")
+            flash_entity_id = payload.flash_entity_id
+            flash_delay_ms = payload.flash_delay_ms or 10000  # default if not provided
+
             raw, itype, flash_enabled = capture_from_ha_source(config, {
                 'camera_entity_id': cam_entity_id,
                 'flash_entity_id': flash_entity_id,
                 'flash_delay_ms': flash_delay_ms,
             })
             b64 = base64.b64encode(raw).decode('utf-8')
+            return {
+                "result": True,
+                "data": b64,
+                "format": itype,
+                "flash_used": bool(flash_enabled),
+            }
         except HTTPException as he:
             raise he
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Capture failed: {e}")
-
-        return {
-            "result": True,
-            "data": b64,
-            "format": itype,
-            "flash_used": bool(flash_enabled),
-        }
 
     # --- Watermeter settings (CRUD) ---
     @app.get("/api/settings", dependencies=[Depends(authenticate)])

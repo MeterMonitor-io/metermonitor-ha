@@ -92,6 +92,55 @@ def capture_from_ha_source(config, source_config):
     finally:
         GLOBAL_CAPTURE_LOCK.remove(cam_entity_id)
 
+def capture_from_http_source(source_config):
+    """Capture image from a simple HTTP endpoint. Returns (raw_bytes, format)."""
+    url = (source_config or {}).get('url')
+    headers = (source_config or {}).get('headers') or {}
+    body = (source_config or {}).get('body')
+
+    if not url or not isinstance(url, str):
+        raise ValueError("No url in source config")
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise ValueError("URL must start with http:// or https://")
+
+    req = urllib.request.Request(url, method='GET')
+    if isinstance(headers, dict):
+        for key, value in headers.items():
+            if key is None:
+                continue
+            req.add_header(str(key), "" if value is None else str(value))
+
+    if body is not None and body != "":
+        if not isinstance(body, str):
+            body = json.dumps(body)
+        req.data = body.encode('utf-8')
+        if "Content-Type" not in req.headers:
+            req.add_header("Content-Type", "application/json")
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            raw = response.read()
+            content_type = response.headers.get('Content-Type', '')
+    except urllib.error.HTTPError as e:
+        raise Exception(f"HTTP source error {e.code}: {e.read().decode('utf-8', errors='ignore')}")
+    except urllib.error.URLError as e:
+        raise Exception(f"HTTP source connection error: {e}")
+    except Exception as e:
+        raise Exception(f"HTTP source unexpected error: {e}")
+
+    fmt = None
+    if "png" in content_type.lower():
+        fmt = "png"
+    elif "jpeg" in content_type.lower() or "jpg" in content_type.lower():
+        fmt = "jpeg"
+    else:
+        try:
+            fmt = Image.open(BytesIO(raw)).format.lower()
+        except Exception:
+            fmt = "jpeg"
+
+    return raw, fmt, False
+
 def process_captured_image(db_file, name, raw_image, format_, config, meter_predictor, publish=True):
     """Process the captured image: save to DB and reevaluate."""
     b64 = base64.b64encode(raw_image).decode('utf-8')
@@ -206,7 +255,16 @@ def capture_and_process_source(config, db_file, source_row, meter_predictor):
 
     try:
         cfg = json.loads(config_json)
-        raw_image, format_, _ = capture_from_ha_source(config, cfg)
+        try:
+            source_type = source_row['source_type']
+        except Exception:
+            source_type = source_row.get('source_type') if isinstance(source_row, dict) else None
+        if source_type == 'ha_camera':
+            raw_image, format_, _ = capture_from_ha_source(config, cfg)
+        elif source_type == 'http':
+            raw_image, format_, _ = capture_from_http_source(cfg)
+        else:
+            raise ValueError(f"Unsupported source type: {source_type}")
         timestamp = process_captured_image(db_file, source_row['name'], raw_image, format_, config, meter_predictor)
 
         # Update source last_success_ts
@@ -223,4 +281,3 @@ def capture_and_process_source(config, db_file, source_row, meter_predictor):
             cursor = conn.cursor()
             cursor.execute("UPDATE sources SET last_error = ? WHERE id = ?", (error_msg, source_row['id']))
             conn.commit()
-

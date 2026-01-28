@@ -85,12 +85,51 @@
             </n-form-item-gi>
           </template>
 
-          <!-- HTTP placeholder -->
+          <!-- HTTP source config -->
           <template v-if="selectedType === 'http'">
-            <n-form-item-gi :span="24">
-              <n-alert type="warning" title="HTTP sources">
-                HTTP sources are not yet implemented. Coming soon!
-              </n-alert>
+            <n-form-item-gi :span="24" label="Image URL">
+              <n-input v-model:value="form.http_url" placeholder="https://example.com/camera.jpg" />
+            </n-form-item-gi>
+
+            <n-form-item-gi :span="12" label="Headers (JSON)">
+              <n-input
+                v-model:value="form.http_headers"
+                type="textarea"
+                :autosize="{ minRows: 3, maxRows: 6 }"
+                placeholder='{"Authorization": "Bearer ..."}'
+              />
+            </n-form-item-gi>
+
+            <n-form-item-gi :span="12" label="Body (optional)">
+              <n-input
+                v-model:value="form.http_body"
+                type="textarea"
+                :autosize="{ minRows: 3, maxRows: 6 }"
+                placeholder="Optional body (sent with GET)"
+              />
+            </n-form-item-gi>
+
+            <n-form-item-gi :span="24" label="Test / preview">
+              <n-space vertical>
+                <n-space>
+                  <n-button
+                    type="primary"
+                    :loading="testing"
+                    @click="testCapture"
+                    :disabled="!form.http_url"
+                  >
+                    Test capture
+                  </n-button>
+
+                  <n-text depth="3" v-if="testHint">
+                    {{ testHint }}
+                  </n-text>
+                </n-space>
+
+                <div v-if="previewBbox" class="preview">
+                  <img :src="previewBbox" alt="Preview" />
+                </div>
+              </n-space>
             </n-form-item-gi>
           </template>
         </n-grid>
@@ -149,7 +188,7 @@ const selectedType = ref('ha_camera');
 const typeOptions = [
   { label: 'Home Assistant (Camera entity)', value: 'ha_camera' },
   { label: 'MQTT (auto-discovery)', value: 'mqtt' },
-  { label: 'HTTP (planned)', value: 'http' },
+  { label: 'HTTP (URL)', value: 'http' },
 ];
 
 const form = ref({
@@ -160,6 +199,9 @@ const form = ref({
   flash_enabled: false,
   flash_entity_id: null,
   flash_delay_ms: 10000,
+  http_url: '',
+  http_headers: '',
+  http_body: '',
 });
 
 const saving = ref(false);
@@ -193,8 +235,24 @@ const canCreate = computed(() => {
   if (selectedType.value === 'ha_camera') {
     return !!form.value.camera_entity_id;
   }
+  if (selectedType.value === 'http') {
+    return !!form.value.http_url?.trim();
+  }
   return true;
 });
+
+const parseHeaders = (raw) => {
+  if (!raw || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    return { __invalid__: true };
+  }
+  return { __invalid__: true };
+};
 
 async function loadCameras() {
   if (selectedType.value !== 'ha_camera') return;
@@ -255,6 +313,18 @@ async function create() {
         flash_delay_ms: form.value.flash_delay_ms,
       };
     }
+    if (selectedType.value === 'http') {
+      const headers = parseHeaders(form.value.http_headers);
+      if (headers && headers.__invalid__) {
+        message.error('Headers must be valid JSON object (e.g. {"Authorization": "Bearer ..."}).');
+        return;
+      }
+      payload.config = {
+        url: form.value.http_url.trim(),
+        headers: headers || null,
+        body: form.value.http_body?.trim() || null,
+      };
+    }
 
     await apiService.postJson('api/sources', payload);
     emit('created');
@@ -269,6 +339,9 @@ async function create() {
       flash_enabled: true,
       flash_entity_id: null,
       flash_delay_ms: 10000,
+      http_url: '',
+      http_headers: '',
+      http_body: '',
     };
   } catch (e) {
     console.error('Create source failed', e);
@@ -283,7 +356,7 @@ async function testCapture() {
   previewBbox.value = null;
   progress.value = 0;
 
-  if (form.value.flash_delay_ms > 0) {
+  if (selectedType.value === 'ha_camera' && form.value.flash_delay_ms > 0) {
     const totalTime = form.value.flash_delay_ms;
     const step = 100; // update every 100ms
     const increment = (step / totalTime) * 100;
@@ -293,18 +366,34 @@ async function testCapture() {
   }
 
   try {
-    const r = await apiService.postJson(`api/capture-now`, {
-      cam_entity_id: form.value.camera_entity_id,
-      flash_entity_id: form.value.flash_enabled ? (form.value.flash_entity_id || null) : '',
-      flash_delay_ms: form.value.flash_delay_ms,
-    });
+    let r;
+    if (selectedType.value === 'http') {
+      const headers = parseHeaders(form.value.http_headers);
+      if (headers && headers.__invalid__) {
+        message.error('Headers must be valid JSON object (e.g. {"Authorization": "Bearer ..."}).');
+        return;
+      }
+      r = await apiService.postJson(`api/capture-now`, {
+        http_url: form.value.http_url.trim(),
+        http_headers: headers || null,
+        http_body: form.value.http_body?.trim() || null,
+      });
+    } else {
+      r = await apiService.postJson(`api/capture-now`, {
+        cam_entity_id: form.value.camera_entity_id,
+        flash_entity_id: form.value.flash_enabled ? (form.value.flash_entity_id || null) : '',
+        flash_delay_ms: form.value.flash_delay_ms,
+      });
+    }
 
     if (!r.result) {
       testHint.value = r.message || 'Capture failed.';
       return;
     }
 
-    testHint.value = `Capture ok (flash: ${r.flash_used ? 'on' : 'off'})`;
+    testHint.value = selectedType.value === 'http'
+      ? 'Capture ok (http)'
+      : `Capture ok (flash: ${r.flash_used ? 'on' : 'off'})`;
     previewBbox.value = `data:image/${r.format};base64,${r.data}`;
   } catch (e) {
     console.error('Test capture failed', e);

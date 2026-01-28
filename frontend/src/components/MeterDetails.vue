@@ -175,7 +175,7 @@
         <n-icon><CheckCircleOutlineOutlined /></n-icon>
         <div>
           <div class="chip-label">Conf. threshold</div>
-          <div class="chip-value">{{ settings.conf_threshold }}%</div>
+          <div class="chip-value">{{ settings.conf_threshold?.toFixed(2) }}%</div>
         </div>
       </div>
     </div>

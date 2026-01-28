@@ -91,6 +91,28 @@
                   />
                 </n-form-item-gi>
               </template>
+
+              <template v-if="isHttpSource">
+                <n-form-item-gi :span="24" label="Image URL">
+                  <n-input v-model:value="form.http_url" placeholder="https://example.com/camera.jpg" />
+                </n-form-item-gi>
+                <n-form-item-gi :span="12" label="Headers (JSON)">
+                  <n-input
+                    v-model:value="form.http_headers"
+                    type="textarea"
+                    :autosize="{ minRows: 3, maxRows: 6 }"
+                    placeholder='{"Authorization": "Bearer ..."}'
+                  />
+                </n-form-item-gi>
+                <n-form-item-gi :span="12" label="Body (optional)">
+                  <n-input
+                    v-model:value="form.http_body"
+                    type="textarea"
+                    :autosize="{ minRows: 3, maxRows: 6 }"
+                    placeholder="Optional body (sent with GET)"
+                  />
+                </n-form-item-gi>
+              </template>
             </n-grid>
 
             <n-space justify="end" style="margin-top: 8px;">
@@ -135,6 +157,21 @@
               <n-grid-item>
                 <div class="meta-label">Flash delay</div>
                 <div class="meta-value">{{ formatMs(source?.config?.flash_delay_ms) }}</div>
+              </n-grid-item>
+            </template>
+
+            <template v-if="isHttpSource">
+              <n-grid-item>
+                <div class="meta-label">Image URL</div>
+                <div class="meta-value">{{ source?.config?.url || '—' }}</div>
+              </n-grid-item>
+              <n-grid-item>
+                <div class="meta-label">Headers</div>
+                <div class="meta-value">{{ formatHeaders(source?.config?.headers) }}</div>
+              </n-grid-item>
+              <n-grid-item>
+                <div class="meta-label">Body</div>
+                <div class="meta-value">{{ source?.config?.body || '—' }}</div>
               </n-grid-item>
             </template>
           </n-grid>
@@ -195,6 +232,7 @@ const sourceTitle = computed(() => getSourceLabel(sourceType.value));
 const sourceName = computed(() => props.source?.name || 'Unknown');
 const sourceEnabled = computed(() => props.source?.enabled === 1 || props.source?.enabled === true);
 const isHaSource = computed(() => sourceType.value === 'ha_camera');
+const isHttpSource = computed(() => sourceType.value === 'http');
 const canEdit = computed(() => !!props.source?.id);
 const showPollInterval = computed(() => props.source?.poll_interval_s !== null && props.source?.poll_interval_s !== undefined);
 
@@ -211,8 +249,24 @@ const form = ref({
   camera_entity_id: '',
   flash_enabled: false,
   flash_entity_id: '',
-  flash_delay_ms: 10000
+  flash_delay_ms: 10000,
+  http_url: '',
+  http_headers: '',
+  http_body: ''
 });
+
+const parseHeaders = (raw) => {
+  if (!raw || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed;
+    }
+  } catch (e) {
+    return { __invalid__: true };
+  }
+  return { __invalid__: true };
+};
 
 const cameraOptions = computed(() => {
   const options = cameras.value.map((camera) => ({
@@ -248,7 +302,10 @@ const syncForm = () => {
     camera_entity_id: source?.config?.camera_entity_id || '',
     flash_enabled: !!source?.config?.flash_entity_id,
     flash_entity_id: source?.config?.flash_entity_id || '',
-    flash_delay_ms: source?.config?.flash_delay_ms ?? 10000
+    flash_delay_ms: source?.config?.flash_delay_ms ?? 10000,
+    http_url: source?.config?.url || '',
+    http_headers: source?.config?.headers ? JSON.stringify(source.config.headers, null, 2) : '',
+    http_body: source?.config?.body || ''
   };
 };
 
@@ -294,18 +351,33 @@ const cancelEditing = () => {
 };
 
 const buildConfigPayload = () => {
-  if (!isHaSource.value) return undefined;
-  const payload = {
-    ...(props.source?.config || {}),
-    camera_entity_id: form.value.camera_entity_id || props.source?.config?.camera_entity_id
-  };
-  if (form.value.flash_enabled) {
-    payload.flash_entity_id = form.value.flash_entity_id || null;
-    payload.flash_delay_ms = form.value.flash_delay_ms;
-  } else {
-    payload.flash_entity_id = null;
+  if (isHaSource.value) {
+    const payload = {
+      ...(props.source?.config || {}),
+      camera_entity_id: form.value.camera_entity_id || props.source?.config?.camera_entity_id
+    };
+    if (form.value.flash_enabled) {
+      payload.flash_entity_id = form.value.flash_entity_id || null;
+      payload.flash_delay_ms = form.value.flash_delay_ms;
+    } else {
+      payload.flash_entity_id = null;
+    }
+    return payload;
   }
-  return payload;
+  if (isHttpSource.value) {
+    const headers = parseHeaders(form.value.http_headers);
+    if (headers && headers.__invalid__) {
+      message.error('Headers must be valid JSON object (e.g. {"Authorization": "Bearer ..."}).');
+      return { __invalid__: true };
+    }
+    return {
+      ...(props.source?.config || {}),
+      url: form.value.http_url?.trim() || props.source?.config?.url,
+      headers: headers || null,
+      body: form.value.http_body?.trim() || null
+    };
+  }
+  return undefined;
 };
 
 const saveChanges = async () => {
@@ -317,6 +389,10 @@ const saveChanges = async () => {
       poll_interval_s: form.value.poll_interval_m ? form.value.poll_interval_m * 60 : null
     };
     const configPayload = buildConfigPayload();
+    if (configPayload && configPayload.__invalid__) {
+      saving.value = false;
+      return;
+    }
     if (configPayload !== undefined) {
       payload.config = configPayload;
     }
@@ -353,6 +429,15 @@ const formatPollInterval = (value) => {
 const formatMs = (value) => {
   if (value === null || value === undefined) return '—';
   return `${value} ms`;
+};
+
+const formatHeaders = (headers) => {
+  if (!headers) return '—';
+  try {
+    return JSON.stringify(headers);
+  } catch (e) {
+    return '—';
+  }
 };
 </script>
 

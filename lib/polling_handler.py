@@ -40,9 +40,9 @@ class PollingHandler:
                     conn.row_factory = sqlite3.Row
                     cursor = conn.cursor()
                     cursor.execute("""
-                        SELECT id, name, poll_interval_s, config_json, last_success_ts
+                        SELECT id, name, source_type, poll_interval_s, config_json, last_success_ts
                         FROM sources
-                        WHERE enabled = 1 AND poll_interval_s > 0 AND source_type = 'ha_camera'
+                        WHERE enabled = 1 AND poll_interval_s > 0 AND source_type IN ('ha_camera', 'http')
                     """)
                     sources = cursor.fetchall()
 
