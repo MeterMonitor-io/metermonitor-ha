@@ -20,18 +20,29 @@ class PollingHandler:
         print("[POLLING] Using shared meter predictor singleton instance.")
 
     def _process_capture(self, source_row):
+        source_id = source_row['id']
+        source_name = source_row['name']
+        now = datetime.datetime.now().isoformat()
+
         try:
             capture_and_process_source(self.config, self.db_file, source_row, self.meter_predictor)
-        except Exception as e:
-            # On failure, update last_success_ts to now to prevent immediate retry
-            import datetime
-            now = datetime.datetime.now().isoformat()
+            # On success, update last_success_ts and clear error
             with sqlite3.connect(self.db_file) as conn:
                 cursor = conn.cursor()
-                cursor.execute("UPDATE sources SET last_success_ts = ? WHERE id = ?", (now, source_row['id']))
+                cursor.execute("UPDATE sources SET last_success_ts = ?, last_error = NULL WHERE id = ?", (now, source_id))
                 conn.commit()
-            # Re-raise to log the error
-            raise
+            print(f"[POLLING] Successfully captured from source '{source_name}'")
+            remove_alert('polling', source_name)
+        except Exception as e:
+            # On failure, update last_success_ts to now to prevent immediate retry
+            error_msg = str(e)
+            print(f"[POLLING] Error capturing from source '{source_name}': {error_msg}")
+            traceback.print_exc()
+            with sqlite3.connect(self.db_file) as conn:
+                cursor = conn.cursor()
+                cursor.execute("UPDATE sources SET last_success_ts = ?, last_error = ? WHERE id = ?", (now, error_msg, source_id))
+                conn.commit()
+            add_alert('polling', f"Polling failed for source '{source_name}': {error_msg}")
 
     def _polling_loop(self):
         while not self.stop_event.is_set():
