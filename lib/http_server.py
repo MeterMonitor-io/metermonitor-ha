@@ -206,9 +206,9 @@ def prepare_setup_app(config, lifespan):
 
             cur.execute('''
                            INSERT OR IGNORE INTO settings
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                            ''', (
-                               meter_name,0,100,0,100,20,7,False,False,False,1.0,None,"yolo",None
+                               meter_name,0,100,0,100,20,7,False,False,False,1.0,None,"yolo",None,True
                            ))
 
     def _normalize_source_type(source_type: str) -> str:

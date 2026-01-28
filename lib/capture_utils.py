@@ -195,7 +195,7 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
             # Also insert default settings
             cursor.execute('''
                 INSERT OR IGNORE INTO settings
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
                 name,
                 0,
@@ -210,7 +210,8 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
                 1.0,
                 None,
                 "yolo",
-                None
+                None,
+                True
             ))
 
         conn.commit()
