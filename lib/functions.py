@@ -201,7 +201,6 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
             "timestamp_adjusted": None
         }
         if setup:
-            print(f"[Eval ({name})] use_correctional_alg={use_correctional_alg} (type={type(use_correctional_alg).__name__})")
             correction = correct_value(db_file, name, [result, processed, prediction, timestamp, denied_digits], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate, use_full_correction=use_correctional_alg)
             correction_meta = {k: correction.get(k) for k in correction_meta.keys()}
             confidence = correction.get("total_confidence", 0.0)

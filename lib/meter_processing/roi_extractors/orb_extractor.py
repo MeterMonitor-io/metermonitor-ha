@@ -171,7 +171,7 @@ class ORBExtractor(ROIExtractorTemplated):
 
         if desc_new is None or len(kp_new) < 10:
             self.last_error = "Too few features in input image"
-            print(self.last_error)
+            print("[ROIExtractor (ORB)]" + self.last_error)
             return None, None, None
 
         # 2. Feature matching with Lowe's ratio test
@@ -186,7 +186,7 @@ class ORBExtractor(ROIExtractorTemplated):
 
         if len(good_matches) < self.min_inliers:
             self.last_error = f"Too few matches: {len(good_matches)}"
-            print(self.last_error)
+            print("[ROIExtractor (ORB)]" + self.last_error)
             return None, None, None
 
         # 3. Homography estimation with RANSAC
@@ -197,7 +197,7 @@ class ORBExtractor(ROIExtractorTemplated):
 
         if H is None:
             self.last_error = "Homography estimation failed"
-            print(self.last_error)
+            print("[ROIExtractor (ORB)]" + self.last_error)
             return None, None, None
 
         num_inliers = np.sum(mask)
@@ -206,12 +206,12 @@ class ORBExtractor(ROIExtractorTemplated):
         # Quality check
         if num_inliers < self.min_inliers:
             self.last_error = f"Too few inliers: {num_inliers}"
-            print(self.last_error)
+            print("[ROIExtractor (ORB)]" + self.last_error)
             return None, None, None
 
         if inlier_ratio < self.inlier_ratio_threshold:
             self.last_error = f"Inlier ratio too low: {inlier_ratio:.2f}"
-            print(self.last_error)
+            print("[ROIExtractor (ORB)]" + self.last_error)
             return None, None, None
 
         # 4. Transform ROI corners
@@ -226,7 +226,7 @@ class ORBExtractor(ROIExtractorTemplated):
                                      self.target_width_ext, self.target_height_ext)
         boundingboxed = self._draw_bbox(input_image, transformed_corners)
 
-        print(f"Success: {num_inliers} inliers, ratio: {inlier_ratio:.2f}")
+        print("[ROIExtractor (ORB)]" + f"Success: {num_inliers} inliers, ratio: {inlier_ratio:.2f}")
         return cropped, cropped_ext, boundingboxed
 
     def _warp_roi(self, image, corners, width, height):

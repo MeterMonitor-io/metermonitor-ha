@@ -2,7 +2,6 @@ import sqlite3
 from datetime import datetime
 
 def correct_value(db_file: str, name: str, new_eval, allow_negative_correction = False, max_flow_rate = 1.0, use_full_correction = True):
-    print(f"[CorrectionAlg ({name})] use_full_correction={use_full_correction} (type={type(use_full_correction).__name__})")
     # get last evaluation
     reject = False
     metadata = {
