@@ -125,14 +125,6 @@ class MQTTHandler:
                 cursor.execute("SELECT * FROM watermeters WHERE name = ?", (data['name'],))
                 meter_exists = cursor.fetchone() is not None
 
-                # check if source for watermeter exists and is enabled
-                cursor.execute("SELECT enabled FROM sources WHERE name = ? AND source_type = 'mqtt'", (data['name'],))
-                result = cursor.fetchone()
-
-                if result is None or not result[0]:
-                    print(f"[MQTT] Source for watermeter {data['name']} is disabled or does not exist")
-                    return
-
                 if not meter_exists:
                     cursor.execute('''
                         INSERT INTO watermeters (name, picture_number, wifi_rssi, picture_format, picture_timestamp, picture_width, picture_height, picture_length, picture_data, setup, picture_data_bbox)
@@ -208,8 +200,16 @@ class MQTTHandler:
                         "VALUES (?, 'mqtt', 1, NULL, NULL, datetime('now'))",
                         (data['name'],),
                     )
-
                 conn.commit()
+                
+                # check if source for watermeter exists and is enabled
+                cursor.execute("SELECT enabled FROM sources WHERE name = ? AND source_type = 'mqtt'", (data['name'],))
+                result = cursor.fetchone()
+
+                if result is None or not result[0]:
+                    print(f"[MQTT] Source for watermeter {data['name']} is disabled or does not exist")
+                    return
+                
                 print(f"[MQTT] Saved/updated metadata of {data['name']} to database.")
                 _, _, boundingboxed_image = reevaluate_latest_picture(self.db_file, data['name'], self.meter_preditor,
                                                                       self.config, publish=True,
