@@ -23,6 +23,7 @@ class PollingHandler:
         source_id = source_row['id']
         source_name = source_row['name']
         now = datetime.datetime.now().isoformat()
+        alert_key = f'polling_{source_name}'
 
         try:
             capture_and_process_source(self.config, self.db_file, source_row, self.meter_predictor)
@@ -32,7 +33,7 @@ class PollingHandler:
                 cursor.execute("UPDATE sources SET last_success_ts = ?, last_error = NULL WHERE id = ?", (now, source_id))
                 conn.commit()
             print(f"[POLLING] Successfully captured from source '{source_name}'")
-            remove_alert('polling', source_name)
+            remove_alert(alert_key)
         except Exception as e:
             # On failure, update last_success_ts to now to prevent immediate retry
             error_msg = str(e)
@@ -42,7 +43,7 @@ class PollingHandler:
                 cursor = conn.cursor()
                 cursor.execute("UPDATE sources SET last_success_ts = ?, last_error = ? WHERE id = ?", (now, error_msg, source_id))
                 conn.commit()
-            add_alert('polling', f"Polling failed for source '{source_name}': {error_msg}")
+            add_alert(alert_key, f"Polling failed for source '{source_name}': {error_msg}")
 
     def _polling_loop(self):
         while not self.stop_event.is_set():
