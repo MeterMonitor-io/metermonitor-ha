@@ -96,6 +96,7 @@ export const useWatermeterStore = defineStore('watermeter', () => {
       conf_threshold: settings.conf_threshold,
       roi_extractor: settings.roi_extractor,
       template_id: settings.template_id,
+      use_correctional_alg: settings.use_correctional_alg,
     };
 
     await apiService.put(`api/watermeters/${meterId}/settings`, payload);

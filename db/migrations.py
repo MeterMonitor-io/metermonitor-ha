@@ -417,8 +417,8 @@ def run_migrations(db_file):
             print("[MIGRATION] Added 'timestamp_adjusted' column to 'evaluations' table")
 
         # add column "used_confidence" to evaluations
-        cursor.execute("PRAGMA table_info(watermeters)")
+        cursor.execute("PRAGMA table_info(settings)")
         columns = [info[1] for info in cursor.fetchall()]
         if 'use_correctional_alg' not in columns:
-            cursor.execute("ALTER TABLE watermeters ADD COLUMN use_correctional_alg BOOLEAN DEFAULT true")
-            print("[MIGRATION] Added 'use_correctional_alg' column to 'evaluations' table")
+            cursor.execute("ALTER TABLE settings ADD COLUMN use_correctional_alg BOOLEAN DEFAULT true")
+            print("[MIGRATION] Added 'use_correctional_alg' column to 'settings' table")

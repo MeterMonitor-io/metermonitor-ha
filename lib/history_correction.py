@@ -1,7 +1,8 @@
 import sqlite3
 from datetime import datetime
 
-def correct_value(db_file: str, name: str, new_eval, allow_negative_correction = False, max_flow_rate = 1.0):
+def correct_value(db_file: str, name: str, new_eval, allow_negative_correction = False, max_flow_rate = 1.0, use_full_correction = True):
+    print(f"[CorrectionAlg ({name})] use_full_correction={use_full_correction} (type={type(use_full_correction).__name__})")
     # get last evaluation
     reject = False
     metadata = {
@@ -82,6 +83,79 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
         digits_changed_vs_top_pred = 0
         fallback_digit_count = 0
         prediction_rank_used_counts = [0, 0, 0]
+
+        # Light correction mode: only replace r/rotation and denied digits with last value
+        if not use_full_correction:
+            for i, lastChar in enumerate(last_value):
+                predictions = new_results[i]
+                if len(predictions) == 0:
+                    correctedValue += lastChar
+                    reject = True
+                    fallback_digit_count += 1
+                    continue
+
+                prediction = predictions[0]
+
+                # Replace rotation class or denied digits with last value
+                if prediction[0] == 'r' or denied_digits[i]:
+                    # check if the digit before has changed upwards, set the digit to 0
+                    if i > 0 and int(correctedValue[-1]) > int(last_value[i-1]):
+                        chosen_digit = '0'
+                    else:
+                        chosen_digit = lastChar
+                    totalConfidence *= prediction[1]
+                    if not denied_digits[i]:
+                        usedConfidence *= prediction[1]
+                    correctedValue += chosen_digit
+                    if chosen_digit != lastChar:
+                        digits_changed_vs_last += 1
+                    if chosen_digit != prediction[0]:
+                        digits_changed_vs_top_pred += 1
+                    prediction_rank_used_counts[0] += 1
+                else:
+                    # Use predicted digit directly
+                    chosen_digit = prediction[0]
+                    totalConfidence *= prediction[1]
+                    usedConfidence *= prediction[1]
+                    correctedValue += chosen_digit
+                    if chosen_digit != lastChar:
+                        digits_changed_vs_last += 1
+                    prediction_rank_used_counts[0] += 1
+
+            # No flow rate or positive flow checks in light mode
+            delta_raw = int(correctedValue) - int(last_value)
+            delta_m3 = delta_raw / 1000.0
+            flow_rate_m3min = delta_m3 / time_diff
+            flow_rate_m3h = flow_rate_m3min * 60.0
+            metadata["delta_raw"] = delta_raw
+            metadata["delta_m3"] = delta_m3
+            metadata["flow_rate_m3h"] = flow_rate_m3h
+            metadata["negative_correction_applied"] = False
+            metadata["fallback_digit_count"] = fallback_digit_count
+            metadata["digits_changed_vs_last"] = digits_changed_vs_last
+            metadata["digits_changed_vs_top_pred"] = digits_changed_vs_top_pred
+            metadata["prediction_rank_used_counts"] = prediction_rank_used_counts
+
+            if reject:
+                metadata["rejection_reason"] = "fallback_digit"
+                return {
+                    "accepted": False,
+                    "value": None,
+                    "total_confidence": 0.0,
+                    "used_confidence": 0.0,
+                    **metadata
+                }
+
+            print(f"[CorrectionAlg LIGHT ({name})] Value accepted for time", new_time, "value", correctedValue)
+            return {
+                "accepted": True,
+                "value": int(correctedValue),
+                "total_confidence": totalConfidence,
+                "used_confidence": usedConfidence,
+                **metadata
+            }
+
+        # Full correction mode (original algorithm)
         for i, lastChar in enumerate(last_value):
 
             predictions = new_results[i]
@@ -164,7 +238,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
         metadata["digits_changed_vs_top_pred"] = digits_changed_vs_top_pred
         metadata["prediction_rank_used_counts"] = prediction_rank_used_counts
 
-        if flow_rate_m3min > max_flow_rate:
+        if flow_rate_m3min > max_flow_rate :
             metadata["rejection_reason"] = "flow_rate_high"
         elif flow_rate_m3min < 0 and not allow_negative_correction:
             metadata["rejection_reason"] = "negative_flow"

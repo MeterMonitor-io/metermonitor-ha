@@ -107,6 +107,13 @@ export const useSetupStore = defineStore('setup', () => {
     await watermeterStore.updateSettings(meterId);
   }
 
+  const updateUseCorrection = async (value, meterId) => {
+    const watermeterStore = useWatermeterStore();
+
+    watermeterStore.settings.use_correctional_alg = value;
+    await watermeterStore.updateSettings(meterId);
+  }
+
   const updateSegmentationSettings = async (data, meterId) => {
     const watermeterStore = useWatermeterStore();
 
@@ -411,6 +418,7 @@ export const useSetupStore = defineStore('setup', () => {
     updateThresholds,
     updateMaxFlow,
     updateConfThreshold,
+    updateUseCorrection,
     updateSegmentationSettings,
     clearEvaluationExamples,
     reevaluate,

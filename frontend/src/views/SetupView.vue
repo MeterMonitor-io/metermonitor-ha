@@ -104,9 +104,12 @@
         <div @click.stop>
           <EvaluationConfigurator
               :evaluation="evaluation"
-              :max-flow-rate="maxFlowRate" :loading="loading"
-              @updateMaxFlow="(data) => setupStore.updateMaxFlow(data, id)"
-              @updateConfThreshold="(data) => setupStore.updateConfThreshold(data, id)"
+              :max-flow-rate="maxFlowRate"
+              :use-correction-alg="useCorrectionAlg"
+              :loading="loading"
+              @update-max-flow="(data) => setupStore.updateMaxFlow(data, id)"
+              @update-conf-threshold="(data) => setupStore.updateConfThreshold(data, id)"
+              @update-use-correction="(data) => setupStore.updateUseCorrection(data, id)"
               @set-loading="setupStore.setLoading"
               @request-random-example="() => setupStore.requestReevaluatedDigits(id)"
               @clear-evaluations="() => setupStore.clearEvaluationExamples()"
@@ -181,6 +184,7 @@ const templateReady = computed(() => !!templateId.value);
 const isTemplateExtractor = (value) => ['orb'].includes(value);
 const maxFlowRate = computed(() => settings.value?.max_flow_rate || 0);
 const confThreshold = computed(() => settings.value?.conf_threshold);
+const useCorrectionAlg = computed(() => settings.value?.use_correctional_alg ?? true);
 
 const templatePoints = ref([]);
 const pendingTemplateSave = ref(false);

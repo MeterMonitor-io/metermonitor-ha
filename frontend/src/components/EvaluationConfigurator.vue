@@ -91,7 +91,22 @@
           Max. flow rate
           <n-input-number :value="maxFlowRate"
                           @update:value="emit('update-max-flow', $event)"
-                          placeholder="Flow rate" :disabled="loading" />
+                          placeholder="Flow rate" :disabled="loading || !useCorrectionAlg" />
+        </div>
+        <div style="max-width: 30%">
+          <n-tooltip>
+            <template #trigger>
+              Correctional alg.
+            </template>
+            <span>
+              Full: Positive flow check, max flow rate, fallback handling<br>
+              Light: Only rotation and low-confidence digits corrected
+            </span>
+          </n-tooltip>
+          <n-switch v-model:value="useCorrectionAlg" @update:value="emit('update-use-correction', $event)" :disabled="loading">
+            <template #checked>Full</template>
+            <template #unchecked>Light</template>
+          </n-switch>
         </div>
       </n-flex>
       <template #action>
@@ -125,13 +140,15 @@ import {
   NBadge,
   NPopconfirm,
   useDialog,
-  NTooltip, NTag
+  NTooltip,
+  NTag,
+  NSwitch
 } from 'naive-ui';
 import router from "@/router";
 import {useSetupStore} from "@/stores/setupStore";
 import {apiService} from "@/services/api";
 
-const emit = defineEmits(['set-loading', 'request-random-example', 'update-max-flow', 'update-conf-threshold', 'clear-evaluations']);
+const emit = defineEmits(['set-loading', 'request-random-example', 'update-max-flow', 'update-conf-threshold', 'update-use-correction', 'clear-evaluations']);
 
 const props = defineProps([
     'meterid',
@@ -139,10 +156,13 @@ const props = defineProps([
     'timestamp',
     'maxFlowRate',
     'confidenceThreshold',
+    'useCorrectionAlg',
     'loading',
     'onSetLoading',
     'randomExamples'
 ]);
+
+const useCorrectionAlg = ref(props.useCorrectionAlg ?? true);
 
 const initialValue = ref(props.evaluation['predictions'].reduce((acc, digit) => {
   const predictedDigit = digit[0][0];

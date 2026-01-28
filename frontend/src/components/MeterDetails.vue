@@ -185,6 +185,13 @@
           <div class="chip-value">{{ extractorLabel }}</div>
         </div>
       </div>
+      <div class="setting-chip">
+        <n-icon><CheckCircleOutlineOutlined /></n-icon>
+        <div>
+          <div class="chip-label">Correction Alg.</div>
+          <div class="chip-value">{{ settings.use_correctional_alg ? 'Full' : 'Light' }}</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -198,7 +205,7 @@
         v-if="data?.picture?.data"
         :image-src="'data:image/' + data.picture.format + ';base64,' + data.picture.data"
         :points="roiPoints"
-        @update:points="(points) => { roiPoints.value = points }"
+        @update:points="(points) => { roiPoints = points }"
       />
       <div v-else class="modal-note">No reference image available.</div>
     </div>
@@ -308,6 +315,7 @@ const menuOptions = computed(() => {
   options.push(
     { label: 'Setup', key: 'setup', icon: () => h(NIcon, null, { default: () => h(SettingsOutlined) }) },
     { label: 'Clear Evals', key: 'clear-evals', icon: () => h(NIcon, null, { default: () => h(PlaylistRemoveOutlined) }) },
+    { label: 'Reset Corr. Alg.', key: 'reset-corr-alg', icon: () => h(NIcon, null, { default: () => h(PlaylistRemoveOutlined) }) },
     { type: 'divider', key: 'divider' },
     { label: 'Delete', key: 'delete', icon: () => h(NIcon, { color: '#d03050' }, { default: () => h(DeleteOutlineOutlined) }) }
   );
@@ -346,6 +354,23 @@ const handleMenuSelect = (key) => {
       positiveText: 'Clear',
       negativeText: 'Cancel',
       onPositiveClick: () => emit('clearEvaluations')
+    });
+    return;
+  }
+  if (key === 'reset-corr-alg') {
+    dialog.warning({
+      title: 'Reset Correctional Algorithm',
+      content: 'This will mark all evaluations as outdated, forcing re-evaluation with the current correction settings.',
+      positiveText: 'Reset',
+      negativeText: 'Cancel',
+      onPositiveClick: async () => {
+        try {
+          await apiService.post(`api/watermeters/${props.id}/evaluations/mark-outdated`);
+          await store.fetchAll(props.id);
+        } catch (e) {
+          console.error('Failed to reset correctional algorithm:', e);
+        }
+      }
     });
     return;
   }
@@ -413,7 +438,10 @@ const saveRoiTemplate = async () => {
       reference_image_base64: props.data.picture.data,
       image_width: props.data.picture.width,
       image_height: props.data.picture.height,
-      display_corners: roiPoints.value.map((point) => [point.x, point.y])
+      display_corners: roiPoints.value.map((point) => [
+        Math.round(point.x * props.data.picture.width),
+        Math.round(point.y * props.data.picture.height)
+      ])
     };
     const result = await apiService.postJson('api/templates', payload);
     if (result?.id) {

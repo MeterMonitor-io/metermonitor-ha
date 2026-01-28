@@ -106,7 +106,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         # Get current settings for the watermeter
         cursor.execute('''
                    SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding,
-                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor, template_id
+                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor, template_id, use_correctional_alg
                    FROM settings
                    WHERE name = ?
                ''', (name,))
@@ -122,6 +122,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         conf_threshold = settings[10] if settings[10] else 0.0
         roi_extractor = settings[11] if settings[11] else "yolo"
         template_id = settings[12] if settings[12] else None
+        use_correctional_alg = bool(settings[13]) if settings[13] is not None else True
 
         # Get the target_brightness from the last history entry
         cursor.execute("SELECT target_brightness FROM history WHERE name = ? ORDER BY ROWID DESC LIMIT 1", (name,))
@@ -200,7 +201,8 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
             "timestamp_adjusted": None
         }
         if setup:
-            correction = correct_value(db_file, name, [result, processed, prediction, timestamp, denied_digits], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate)
+            print(f"[Eval ({name})] use_correctional_alg={use_correctional_alg} (type={type(use_correctional_alg).__name__})")
+            correction = correct_value(db_file, name, [result, processed, prediction, timestamp, denied_digits], allow_negative_correction=config["allow_negative_correction"], max_flow_rate=max_flow_rate, use_full_correction=use_correctional_alg)
             correction_meta = {k: correction.get(k) for k in correction_meta.keys()}
             confidence = correction.get("total_confidence", 0.0)
             used_confidence = correction.get("used_confidence", 0.0)
