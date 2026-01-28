@@ -104,7 +104,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         # Get current settings for the watermeter
         cursor.execute('''
                    SELECT threshold_low, threshold_high, threshold_last_low, threshold_last_high, islanding_padding,
-                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold
+                    segments, shrink_last_3, extended_last_digit, max_flow_rate, rotated_180, conf_threshold, roi_extractor
                    FROM settings
                    WHERE name = ?
                ''', (name,))
@@ -118,6 +118,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         max_flow_rate = settings[8]
         rotated_180 = settings[9]
         conf_threshold = settings[10] if settings[10] else 0.0
+        roi_extractor = settings[11] if settings[11] else "yolo"
 
         # Get the target_brightness from the last history entry
         cursor.execute("SELECT target_brightness FROM history WHERE name = ? ORDER BY ROWID DESC LIMIT 1", (name,))
@@ -129,8 +130,15 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
         image = Image.open(BytesIO(image_data))
 
         # Use the meter predictor to extract the digits from the image
-        result, digits, target_brightness, boundingboxed_image = meter_preditor.extract_display_and_segment(image, segments=segments, shrink_last_3=shrink_last_3,
-                                                                  extended_last_digit=extended_last_digit, rotated_180=rotated_180, target_brightness=target_brightness)
+        result, digits, target_brightness, boundingboxed_image = meter_preditor.extract_display_and_segment(
+            image,
+            segments=segments,
+            shrink_last_3=shrink_last_3,
+            extended_last_digit=extended_last_digit,
+            rotated_180=rotated_180,
+            target_brightness=target_brightness,
+            roi_extractor=roi_extractor
+        )
 
         if not result or len(result) == 0:
             print(f"[Eval ({name})] No result found")

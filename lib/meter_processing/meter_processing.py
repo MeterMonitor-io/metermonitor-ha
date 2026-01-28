@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 import onnxruntime as ort
 
+from lib.meter_processing.roi_extractors import YOLOExtractor, BypassExtractor
 
 class MeterPredictor:
     """
@@ -57,7 +58,7 @@ class MeterPredictor:
         print(f"[MeterPredictor] YOLO input: {self.yolo_input_name}")
         print(f"[MeterPredictor] Digit classifier input: {self.digit_input_name}")
 
-    def extract_display_and_segment(self, input_image, segments=7, rotated_180=False, extended_last_digit=False, shrink_last_3=False, target_brightness=None):
+    def extract_display_and_segment(self, input_image, segments=7, rotated_180=False, extended_last_digit=False, shrink_last_3=False, target_brightness=None, roi_extractor="yolo"):
         """
         Predicts the water meter reading on a single image:
           - Runs YOLO detection for oriented bounding box (OBB)
@@ -73,267 +74,20 @@ class MeterPredictor:
             target_brightness (float): The target brightness to adjust the image to.
         """
 
-        # Rotate the image 180 degrees
         if rotated_180:
-            #  is image.py
             input_image = input_image.rotate(180, expand=True)
 
-        print(f"[Predictor] Running YOLO region-of-interest detection...")
-
-        # Prepare image for YOLO ONNX model
-        img_np = np.array(input_image)
-        original_height, original_width = img_np.shape[:2]
-
-        # Letterbox resizing (maintain aspect ratio)
-        target_size = 640
-        scale = min(target_size / original_width, target_size / original_height)
-        new_w = int(original_width * scale)
-        new_h = int(original_height * scale)
-
-        img_resized = cv2.resize(img_np, (new_w, new_h))
-
-        # Create canvas with padding (114 is standard YOLO padding color)
-        canvas = np.full((target_size, target_size, 3), 114, dtype=np.uint8)
-
-        # Center the image
-        top = (target_size - new_h) // 2
-        left = (target_size - new_w) // 2
-        canvas[top:top+new_h, left:left+new_w] = img_resized
-
-        # Normalize and prepare for ONNX (CHW format)
-        img_normalized = canvas.astype(np.float32) / 255.0
-        img_transposed = img_normalized.transpose(2, 0, 1)  # HWC to CHW
-        img_batch = np.expand_dims(img_transposed, axis=0)  # Add batch dimension
-
-        # Run YOLO ONNX inference
-        try:
-            outputs = self.yolo_session.run(None, {self.yolo_input_name: img_batch})
-        except Exception as e:
-            print(f"[Predictor] YOLO inference failed: {e}")
-            return [], [], None, None
-
-        # YOLO OBB output format:
-        # outputs[0] shape is typically [batch, num_preds, num_values]
-        # For OBB: [batch, num_preds, 7+num_classes] where 7 = [x, y, w, h, rotation, confidence, class_id]
-        # OR [batch, features, anchors] e.g. [1, 6, 8400]
-
-        output = outputs[0]
-
-        # Transpose if features are in the second dimension (channels first)
-        # e.g. [1, 6, 8400] -> [1, 8400, 6]
-        if output.shape[1] < output.shape[2]:
-            output = output.transpose(0, 2, 1)
-
-        predictions = output[0]  # Remove batch dimension
-
-        # Filter by confidence
-        # For OBB with 1 class, we expect 6 features.
-        # The order varies by version. It could be [x, y, w, h, rotation, confidence] or [x, y, w, h, confidence, rotation]
-
-        # Heuristic to determine which channel is confidence and which is rotation
-        # Confidence is strictly [0, 1]. Rotation is in radians (approx -1.57 to 1.57) and can be > 1.
-
-        if predictions.shape[1] == 6:
-            col4 = predictions[:, 4]
-            col5 = predictions[:, 5]
-
-            max4 = np.max(col4)
-            max5 = np.max(col5)
-
-            # If one column has values > 1.0, it must be rotation
-            if max5 > 1.05:
-                confidence_idx = 4
-                rotation_idx = 5
-                print(f"[Predictor] Detected format: [x, y, w, h, conf, rot] (max col5={max5:.2f})")
-            elif max4 > 1.05:
-                confidence_idx = 5
-                rotation_idx = 4
-                print(f"[Predictor] Detected format: [x, y, w, h, rot, conf] (max col4={max4:.2f})")
-            else:
-                # Ambiguous if both are small.
-                # Default to index 4 as confidence (common in newer versions: xywh + conf + rot)
-                confidence_idx = 4
-                rotation_idx = 5
-                print(f"[Predictor] Ambiguous format (max values <= 1.0). Defaulting to [x, y, w, h, conf, rot]")
-
-        elif predictions.shape[1] >= 7:
-             # [x, y, w, h, conf, class..., rot] or similar
-             # Usually rotation is the last one or after coords
-             # Let's assume standard YOLOv8/11 OBB: [x, y, w, h, split_conf?, rot?]
-             # Actually, often it is [x, y, w, h, class_probs..., rot]
-             # If 1 class: [x, y, w, h, class_prob, rot] -> same as 6 channels
-
-             # If we have 7 channels, maybe 2 classes?
-             # [x, y, w, h, class1, class2, rot]
-
-             # Rotation is likely the last channel or the one with values > 1
-
-             # Find channel with max > 1.05
-             rotation_idx = -1
-             for i in range(4, predictions.shape[1]):
-                 if np.max(predictions[:, i]) > 1.05:
-                     rotation_idx = i
-                     break
-
-             if rotation_idx != -1:
-                 # If we found rotation, the rest are classes/confidence
-                 # Take max of other channels as confidence
-                 class_indices = [i for i in range(4, predictions.shape[1]) if i != rotation_idx]
-                 confidence_idx = class_indices[0] # Just for scalar indexing if needed
-                 # But we should take max over class indices
-             else:
-                 # Fallback
-                 rotation_idx = predictions.shape[1] - 1
-                 confidence_idx = 4
-
-        if predictions.shape[1] >= 6:
-            if predictions.shape[1] > 6:
-                # Multiple classes or class probs, take max of all class columns
-                # Exclude rotation index
-                class_cols = [i for i in range(4, predictions.shape[1]) if i != rotation_idx]
-                if class_cols:
-                    confidences = np.max(predictions[:, class_cols], axis=1)
-                else:
-                    confidences = predictions[:, confidence_idx]
-            else:
-                confidences = predictions[:, confidence_idx]
+        if roi_extractor == "bypass":
+            extractor = BypassExtractor()
         else:
-             confidences = predictions[:, confidence_idx]
-
-        valid_mask = confidences > 0.15
-
-        if not np.any(valid_mask):
-            print(f"[Predictor] No instances detected with confidence > 0.15")
+            extractor = YOLOExtractor(self.yolo_session, self.yolo_input_name, extended_last_digit=extended_last_digit)
+        rotated_cropped_img, rotated_cropped_img_ext, boundingboxed_image = extractor.extract(input_image)
+        if rotated_cropped_img is None:
             return [], [], None, None
-
-        valid_predictions = predictions[valid_mask]
-        valid_confidences = confidences[valid_mask]
-
-        # Get the detection with highest confidence
-        best_idx = np.argmax(valid_confidences)
-        detection = valid_predictions[best_idx]
-
-        print(f"[Predictor] Raw detection: {detection}")
-        print(f"[Predictor] Confidence: {valid_confidences[best_idx]:.4f}")
-        print(f"[Predictor] Rotation: {detection[rotation_idx]:.4f}")
-        print(f"[Predictor] Original size: {original_width}x{original_height}")
-
-        # Extract OBB parameters (x_center, y_center, width, height, rotation)
-        x_center_norm = detection[0]
-        y_center_norm = detection[1]
-        width_norm = detection[2]
-        height_norm = detection[3]
-
-        # Handle rotation angle
-        rotation = detection[rotation_idx]  # In radians
-
-        # Scale back to original image size
-        # Check if coordinates are normalized (0-1) or pixels (0-640)
-        if x_center_norm < 2.0 and y_center_norm < 2.0 and width_norm < 2.0 and height_norm < 2.0:
-             # Normalized coordinates -> convert to pixels in 640x640 space first
-             x_center_pixel = x_center_norm * 640.0
-             y_center_pixel = y_center_norm * 640.0
-             width_pixel = width_norm * 640.0
-             height_pixel = height_norm * 640.0
-        else:
-             # Pixel coordinates
-             x_center_pixel = x_center_norm
-             y_center_pixel = y_center_norm
-             width_pixel = width_norm
-             height_pixel = height_norm
-
-        # Adjust for letterboxing
-        # 1. Remove padding shift
-        x_center_pixel -= left
-        y_center_pixel -= top
-
-        # 2. Scale back to original size
-        x_center = x_center_pixel / scale
-        y_center = y_center_pixel / scale
-        width = width_pixel / scale
-        height = height_pixel / scale
-
-        if height > width:
-            width, height = height, width
-            rotation = rotation + (np.pi / 2.0)
-
-        # Convert OBB (center, size, rotation) to 4 corner points
-        # Create corner offsets (unrotated box)
-        hw = width / 2.0
-        hh = height / 2.0
-
-        corners_unrotated = np.array([
-            [-hw, -hh],  # top-left
-            [hw, -hh],   # top-right
-            [hw, hh],    # bottom-right
-            [-hw, hh]    # bottom-left
-        ], dtype=np.float32)
-
-        # Apply rotation
-        cos_r = np.cos(rotation)
-        sin_r = np.sin(rotation)
-        rotation_matrix = np.array([
-            [cos_r, -sin_r],
-            [sin_r, cos_r]
-        ], dtype=np.float32)
-
-        corners_rotated = corners_unrotated @ rotation_matrix.T
-
-        # Translate to center position
-        obb_coords = corners_rotated + np.array([x_center, y_center], dtype=np.float32)
-
-        img = img_np
-
-        # 1. Cut out the detected OBB
-
-        # Reshape OBB coordinates into four (x,y) points
-        points = obb_coords.reshape(4, 2).astype(np.float32)
-        # Sort the points by y-coordinate (top to bottom)
-        # Robust point ordering: [top-left, top-right, bottom-right, bottom-left]
-        pts = points.astype(np.float32)
-
-        s = pts.sum(axis=1)  # x+y
-        diff = np.diff(pts, axis=1).ravel()  # x-y
-
-        top_left = pts[np.argmin(s)]
-        bottom_right = pts[np.argmax(s)]
-        top_right = pts[np.argmin(diff)]
-        bottom_left = pts[np.argmax(diff)]
-
-        points = np.array([top_left, top_right, bottom_right, bottom_left], dtype="float32")
-
-        # Compute bounding box width/height
-        width_a = np.linalg.norm(points[0] - points[1])
-        width_b = np.linalg.norm(points[2] - points[3])
-        max_width = max(int(width_a), int(width_b))
-
-        height_a = np.linalg.norm(points[1] - points[2])
-        height_b = np.linalg.norm(points[3] - points[0])
-        max_height = max(int(height_a), int(height_b))
-
-        # Perspective transform to get the "front-facing" rectangle
-        dst_points = np.array([
-            [0, 0],
-            [max_width - 1, 0],
-            [max_width - 1, max_height - 1],
-            [0, max_height - 1]
-        ], dtype="float32")
-
-        M = cv2.getPerspectiveTransform(points, dst_points)
-        rotated_cropped_img = cv2.warpPerspective(img, M, (max_width, max_height))
-        rotated_cropped_img_ext = None
-
-        if rotated_cropped_img.shape[0] > rotated_cropped_img.shape[1]:
-            rotated_cropped_img = cv2.rotate(rotated_cropped_img, cv2.ROTATE_90_CLOCKWISE)
-
-        # Cut out a larger area for the last digit
-        if extended_last_digit:
-            rotated_cropped_img_ext = cv2.warpPerspective(img, M, (max_width, int(max_height * 1.2)))
-            if rotated_cropped_img_ext.shape[0] > rotated_cropped_img_ext.shape[1]:
-                rotated_cropped_img_ext = cv2.rotate(rotated_cropped_img_ext, cv2.ROTATE_90_CLOCKWISE)
 
         # Split the cropped meter into segments vertical parts for classification
-        if (segments == 0): return [],[]
+        if segments == 0:
+            return [], []
         part_width = rotated_cropped_img.shape[1] // segments
 
         base64s = []
@@ -383,20 +137,6 @@ class MeterPredictor:
             img_str = img_str.decode('utf-8')
 
             base64s.append(img_str)
-
-        # export base64 with the input_image + the inserted bounding box for debugging
-        img_with_bbox = np.array(input_image)
-        boundingboxed_image = None
-        if obb_coords is not None:
-            obb_points = obb_coords.reshape(4, 2).astype(np.int32)
-            cv2.polylines(img_with_bbox, [obb_points], isClosed=True, color=(255, 0, 0), thickness=2)
-
-            pil_img = Image.fromarray(img_with_bbox)
-            buffered = BytesIO()
-            pil_img.save(buffered, format="PNG")
-            img_str = base64.b64encode(buffered.getvalue())
-            # to string
-            boundingboxed_image = img_str.decode('utf-8')
 
         return base64s, digits, target_brightness, boundingboxed_image
 

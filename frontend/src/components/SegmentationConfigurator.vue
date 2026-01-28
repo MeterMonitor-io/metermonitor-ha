@@ -6,6 +6,22 @@
         <img v-else-if="lastPicture" :src="'data:image/'+lastPicture.picture.format+';base64,' + lastPicture.picture.data" alt="Watermeter" />
 
         <span class="timestamp-overlay">{{ formattedTimestamp }}</span>
+        <n-button
+          size="tiny"
+          type="primary"
+          class="recapture-button"
+          :loading="capturing"
+          :disabled="loading || capturing"
+          @click="emits('recapture')"
+        >
+          <template #icon>
+            <n-icon><CameraAltOutlined /></n-icon>
+          </template>
+          Recapture
+        </n-button>
+        <div v-if="capturing" class="capture-overlay">
+          <n-spin size="small" />
+        </div>
       </div>
     </template>
     <br>
@@ -14,6 +30,22 @@
       Without a bounding box the segmentation will not work. Adjust the camera angle or lighting and try again.
     </n-alert>
 
+    <n-tooltip>
+      <template #trigger>
+        <span class="tooltip-trigger">
+          <n-icon size="16"><CropOutlined /></n-icon>
+          <span>ROI Extractor</span>
+        </span>
+      </template>
+      <span>Select the region-of-interest extractor</span>
+    </n-tooltip>
+    <n-select
+      :value="currentExtractor"
+      :options="extractorOptions"
+      :disabled="loading"
+      @update:value="handleUpdate('roiExtractor', $event)"
+    />
+    <br>
     <n-tooltip>
       <template #trigger>
         Segments
@@ -35,7 +67,10 @@
       />
       <n-tooltip>
         <template #trigger>
-          <span>Extended last digit</span>
+          <span class="tooltip-trigger">
+            <n-icon size="16"><AddCircleOutlineOutlined /></n-icon>
+            <span>Extended last digit</span>
+          </span>
         </template>
         <span>Enable if the last digits display is bigger<br>compared to the other digits</span>
       </n-tooltip>
@@ -48,7 +83,10 @@
       />
       <n-tooltip>
         <template #trigger>
-          <span>Last 3 digits are narrow</span>
+          <span class="tooltip-trigger">
+            <n-icon size="16"><CompressOutlined /></n-icon>
+            <span>Last 3 digits are narrow</span>
+          </span>
         </template>
         <span>Enable if the last three digits displays are narrower<br>compared to the other digits</span>
       </n-tooltip>
@@ -61,7 +99,10 @@
       />
       <n-tooltip>
         <template #trigger>
-          <span>180° rotated</span>
+          <span class="tooltip-trigger">
+            <n-icon size="16"><RotateRightOutlined /></n-icon>
+            <span>180° rotated</span>
+          </span>
         </template>
         <span>Enable if the captured image is rotated 180°</span>
       </n-tooltip>
@@ -85,8 +126,15 @@
 </template>
 
 <script setup>
-import {NCard, NFlex, NInputNumber, NSwitch, NDivider, NButton, NTooltip, NAlert} from 'naive-ui';
+import {NCard, NFlex, NInputNumber, NSwitch, NDivider, NButton, NTooltip, NAlert, NSelect, NSpin, NIcon} from 'naive-ui';
 import {defineProps, defineEmits, computed} from 'vue';
+import {
+  AddCircleOutlineOutlined,
+  CameraAltOutlined,
+  CompressOutlined,
+  CropOutlined,
+  RotateRightOutlined
+} from '@vicons/material';
 
 const props = defineProps([
     'lastPicture',
@@ -96,10 +144,12 @@ const props = defineProps([
     'last3DigitsNarrow',
     'evaluation',
     'rotated180',
+    'roiExtractor',
+    'capturing',
     'loading',
     'noBoundingBox'
 ]);
-const emits = defineEmits(['update', 'next']);
+const emits = defineEmits(['update', 'next', 'recapture']);
 
 const formattedTimestamp = computed(() => {
   if (!props.timestamp) return '';
@@ -114,12 +164,20 @@ const formattedTimestamp = computed(() => {
   });
 });
 
+const extractorOptions = [
+  { label: 'YOLO - Use the YOLOv11 AI-model', value: 'yolo' },
+  { label: 'Bypass - Directly segment received images', value: 'bypass' }
+];
+
+const currentExtractor = computed(() => props.roiExtractor || 'yolo');
+
 const handleUpdate = (field, value) => {
   emits('update', {
     segments: field === 'segments' ? value : props.segments,
     extendedLastDigit: field === 'extendedLastDigit' ? value : props.extendedLastDigit,
     last3DigitsNarrow: field === 'last3DigitsNarrow' ? value : props.last3DigitsNarrow,
-    rotated180: field === 'rotated180' ? value : props.rotated180
+    rotated180: field === 'rotated180' ? value : props.rotated180,
+    roiExtractor: field === 'roiExtractor' ? value : props.roiExtractor
   });
 };
 
@@ -150,11 +208,34 @@ const handleUpdate = (field, value) => {
   backdrop-filter: blur(4px);
 }
 
+.recapture-button {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 2;
+}
+
+.capture-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+
 .digit {
   height: auto;
 }
 
 .padd {
   margin-bottom: 10px;
+}
+
+.tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 </style>

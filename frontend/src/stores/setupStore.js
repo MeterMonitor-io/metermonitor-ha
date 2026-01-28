@@ -11,6 +11,7 @@ export const useSetupStore = defineStore('setup', () => {
   const loading = ref(false);
   const loadingCancelled = ref(false);
   const runningBenchmark = ref(false);
+  const capturing = ref(false);
   const searchingThresholds = ref(false);
   const thresholdSearchResult = ref(null);
   const tooFewEvaluations = ref(false);
@@ -113,6 +114,7 @@ export const useSetupStore = defineStore('setup', () => {
     watermeterStore.settings.extended_last_digit = data.extendedLastDigit;
     watermeterStore.settings.shrink_last_3 = data.last3DigitsNarrow;
     watermeterStore.settings.rotated_180 = data.rotated180;
+    watermeterStore.settings.roi_extractor = data.roiExtractor;
 
     await watermeterStore.updateSettings(meterId);
     await reevaluate(meterId);
@@ -252,6 +254,32 @@ export const useSetupStore = defineStore('setup', () => {
     loading.value = false;
   };
 
+  const triggerCapture = async (meterId) => {
+    if (capturing.value) return;
+    capturing.value = true;
+    try {
+      const watermeterStore = useWatermeterStore();
+      if (!watermeterStore.source || !watermeterStore.source.id) {
+        await watermeterStore.fetchSource(meterId);
+      }
+      const source = watermeterStore.source;
+      if (!source || !source.id) {
+        console.error('No source available for capture');
+        return;
+      }
+      const response = await apiService.post(`api/sources/${source.id}/capture`);
+      if (!response.ok) {
+        console.error('Capture failed');
+        return;
+      }
+      await watermeterStore.fetchAll(meterId);
+    } catch (e) {
+      console.error('Capture failed', e);
+    } finally {
+      capturing.value = false;
+    }
+  };
+
   const reset = () => {
     console.log('Resetting setup store state');
     currentStep.value = 1;
@@ -270,6 +298,7 @@ export const useSetupStore = defineStore('setup', () => {
     randomExamples,
     noBoundingBox,
     loading,
+    capturing,
     runningBenchmark,
     searchingThresholds,
     thresholdSearchResult,
@@ -288,6 +317,6 @@ export const useSetupStore = defineStore('setup', () => {
     reevaluate,
     requestReevaluatedDigits,
     getData,
+    triggerCapture,
   };
 });
-

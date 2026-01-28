@@ -9,19 +9,22 @@
     >
       <div v-if="(narrowScreen && currentlyFocusedStep === 1) || (!narrowScreen)">
         <div @click.stop>
-          <SegmentationConfigurator
-              :last-picture="lastPicture"
-              :extended-last-digit="extendedLastDigit"
-              :last-3-digits-narrow="last3DigitsNarrow"
-              :segments="segments"
-              :rotated180="rotated180"
-              :evaluation="evaluation"
-              :timestamp="lastPicture ? lastPicture.picture.timestamp : ''"
-              :loading="loading"
-              :no-bounding-box="noBoundingBox"
-              @update="(newSettings) => setupStore.updateSegmentationSettings(newSettings, id)"
-              @next="onSegmentationNext"
-          />
+        <SegmentationConfigurator
+            :last-picture="lastPicture"
+            :extended-last-digit="extendedLastDigit"
+            :last-3-digits-narrow="last3DigitsNarrow"
+            :segments="segments"
+            :rotated180="rotated180"
+            :roi-extractor="roiExtractor"
+            :capturing="capturing"
+            :evaluation="evaluation"
+            :timestamp="lastPicture ? lastPicture.picture.timestamp : ''"
+            :loading="loading"
+            :no-bounding-box="noBoundingBox"
+            @update="(newSettings) => setupStore.updateSegmentationSettings(newSettings, id)"
+            @next="onSegmentationNext"
+            @recapture="() => setupStore.triggerCapture(id)"
+        />
         </div>
         <br>
         <n-tooltip trigger="hover" placement="bottom">
@@ -157,7 +160,7 @@ const currentlyFocusedStep = ref(1);
 
 // Get reactive state from stores
 const { lastPicture, evaluation, settings } = storeToRefs(watermeterStore);
-const { currentStep, randomExamples, noBoundingBox, loading, searchingThresholds, thresholdSearchResult } = storeToRefs(setupStore);
+const { currentStep, randomExamples, noBoundingBox, loading, searchingThresholds, thresholdSearchResult, capturing } = storeToRefs(setupStore);
 
 const threshold = computed(() => [settings.value?.threshold_low || 0, settings.value?.threshold_high || 0]);
 const thresholdLast = computed(() => [settings.value?.threshold_last_low || 0, settings.value?.threshold_last_high || 0]);
@@ -166,6 +169,7 @@ const segments = computed(() => settings.value?.segments || 0);
 const extendedLastDigit = computed(() => settings.value?.extended_last_digit || false);
 const last3DigitsNarrow = computed(() => settings.value?.shrink_last_3 || false);
 const rotated180 = computed(() => settings.value?.rotated_180 || false);
+const roiExtractor = computed(() => settings.value?.roi_extractor || 'yolo');
 const maxFlowRate = computed(() => settings.value?.max_flow_rate || 0);
 const confThreshold = computed(() => settings.value?.conf_threshold);
 

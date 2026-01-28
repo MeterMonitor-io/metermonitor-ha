@@ -22,6 +22,7 @@ export const useWatermeterStore = defineStore('watermeter', () => {
     rotated_180: false,
     max_flow_rate: 1.0,
     conf_threshold: null,
+    roi_extractor: 'yolo',
   });
 
   // Actions
@@ -71,7 +72,8 @@ export const useWatermeterStore = defineStore('watermeter', () => {
       shrink_last_3: data.shrink_last_3 === 1,
       rotated_180: data.rotated_180 === 1,
       max_flow_rate: data.max_flow_rate,
-      conf_threshold: data.conf_threshold
+      conf_threshold: data.conf_threshold,
+      roi_extractor: data.roi_extractor || 'yolo'
     });
 
     return data;
@@ -90,6 +92,7 @@ export const useWatermeterStore = defineStore('watermeter', () => {
       shrink_last_3: settings.shrink_last_3,
       max_flow_rate: settings.max_flow_rate,
       conf_threshold: settings.conf_threshold,
+      roi_extractor: settings.roi_extractor,
     };
 
     await apiService.put(`api/watermeters/${meterId}/settings`, payload);

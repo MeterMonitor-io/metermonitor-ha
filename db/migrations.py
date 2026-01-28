@@ -36,6 +36,7 @@ def run_migrations(db_file):
                            shrink_last_3       BOOLEAN,
                            extended_last_digit BOOLEAN,
                            max_flow_rate       FLOAT,
+                           roi_extractor       TEXT,
                            FOREIGN KEY (name) REFERENCES watermeters (name)
                        )
                        ''')
@@ -266,6 +267,15 @@ def run_migrations(db_file):
             ''')
             print("[MIGRATION] Added 'conf_threshold' column to 'settings' table")
 
+        cursor.execute("PRAGMA table_info(settings)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'roi_extractor' not in columns:
+            cursor.execute('''
+                ALTER TABLE settings
+                ADD COLUMN roi_extractor TEXT DEFAULT 'yolo'
+            ''')
+            print("[MIGRATION] Added 'roi_extractor' column to 'settings' table")
+
         # add a column "denied_digits" to the evaluations table ([FALSE, FALSE, ...] as JSON string with length of digits as default)
         cursor.execute("PRAGMA table_info(evaluations)")
         columns = [info[1] for info in cursor.fetchall()]
@@ -389,5 +399,4 @@ def run_migrations(db_file):
         if 'use_correctional_alg' not in columns:
             cursor.execute("ALTER TABLE watermeters ADD COLUMN use_correctional_alg BOOLEAN DEFAULT true")
             print("[MIGRATION] Added 'use_correctional_alg' column to 'evaluations' table")
-
 
