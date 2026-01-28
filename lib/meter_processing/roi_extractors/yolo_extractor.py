@@ -19,6 +19,11 @@ class YOLOExtractor(ROIExtractor):
         print("[ROIExtractor (YOLO)] Running YOLO region-of-interest detection...")
 
         img_np = np.array(input_image)
+        # Ensure 3-channel RGB input (drop alpha or expand grayscale)
+        if img_np.ndim == 2:
+            img_np = np.repeat(img_np[:, :, None], 3, axis=2)
+        elif img_np.shape[2] == 4:
+            img_np = img_np[:, :, :3]
         original_height, original_width = img_np.shape[:2]
 
         target_size = 640

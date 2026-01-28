@@ -36,17 +36,30 @@ class ORBExtractor(ROIExtractorTemplated):
 
         # Parse config with defaults
         self.display_corners = np.array(config_dict['display_corners'], dtype=np.float32)
-        self.target_width = config_dict.get('target_width', 400)
-        self.target_height = config_dict.get('target_height', 200)
-        self.target_width_ext = config_dict.get('target_width_ext', 600)
-        self.target_height_ext = config_dict.get('target_height_ext', 300)
-        self.min_inliers = config_dict.get('min_inliers', 10)
-        self.inlier_ratio_threshold = config_dict.get('inlier_ratio_threshold', 0.3)
-        self.max_reprojection_error = config_dict.get('max_reprojection_error', 3.0)
-        self.matching_mask_padding = config_dict.get('matching_mask_padding', 10)
+
+        target_width = config_dict.get('target_width')
+        target_height = config_dict.get('target_height')
+        if target_width is None or target_height is None:
+            target_width, target_height = self._estimate_target_size(self.display_corners)
+        self.target_width = int(target_width)
+        self.target_height = int(target_height)
+
+        target_width_ext = config_dict.get('target_width_ext')
+        target_height_ext = config_dict.get('target_height_ext')
+        if target_width_ext is None or target_height_ext is None:
+            target_width_ext = int(round(self.target_width * 1.2))
+            target_height_ext = int(round(self.target_height * 1.2))
+        self.target_width_ext = int(target_width_ext)
+        self.target_height_ext = int(target_height_ext)
+
+        self.min_inliers = config_dict.get('min_inliers', 6)
+        self.inlier_ratio_threshold = config_dict.get('inlier_ratio_threshold', 0.2)
+        self.max_reprojection_error = config_dict.get('max_reprojection_error', 5.0)
+        self.matching_mask_padding = config_dict.get('matching_mask_padding', 4)
+        self.lowe_ratio = config_dict.get('lowe_ratio', 0.8)
 
         # ORB parameters
-        orb_nfeatures = config_dict.get('orb_nfeatures', 2000)
+        orb_nfeatures = config_dict.get('orb_nfeatures', 3000)
         orb_scale_factor = config_dict.get('orb_scale_factor', 1.2)
         orb_nlevels = config_dict.get('orb_nlevels', 8)
 
@@ -118,11 +131,15 @@ class ORBExtractor(ROIExtractorTemplated):
             expanded_poly = np.array(expanded_poly, dtype=np.int32)
             cv2.fillPoly(mask, [expanded_poly], 0)
 
-        # Extract features
+        # Extract features (fallback to full image if masked area is too sparse)
         keypoints, descriptors = self.detector.detectAndCompute(self.reference_gray, mask)
-
-        if descriptors is None or len(keypoints) < 10:
-            raise ValueError("Too few features found in reference image!")
+        min_ref_features = max(10, int(self.min_inliers))
+        if descriptors is None or len(keypoints) < min_ref_features:
+            keypoints, descriptors = self.detector.detectAndCompute(self.reference_gray, None)
+            if descriptors is None or len(keypoints) < min_ref_features:
+                found = 0 if keypoints is None else len(keypoints)
+                raise ValueError(f"Too few features found in reference image! ({found})")
+            mask = None
 
         return {
             'matching_mask': mask,
@@ -181,7 +198,7 @@ class ORBExtractor(ROIExtractorTemplated):
         for match_pair in matches:
             if len(match_pair) == 2:
                 m, n = match_pair
-                if m.distance < 0.75 * n.distance:
+                if m.distance < self.lowe_ratio * n.distance:
                     good_matches.append(m)
 
         if len(good_matches) < self.min_inliers:
@@ -228,6 +245,19 @@ class ORBExtractor(ROIExtractorTemplated):
 
         print("[ROIExtractor (ORB)]" + f"Success: {num_inliers} inliers, ratio: {inlier_ratio:.2f}")
         return cropped, cropped_ext, boundingboxed
+
+    def _estimate_target_size(self, corners):
+        """Estimate target size from ROI corners."""
+        width_a = np.linalg.norm(corners[0] - corners[1])
+        width_b = np.linalg.norm(corners[2] - corners[3])
+        height_a = np.linalg.norm(corners[0] - corners[3])
+        height_b = np.linalg.norm(corners[1] - corners[2])
+        target_width = int(round(max(width_a, width_b)))
+        target_height = int(round(max(height_a, height_b)))
+        if target_width <= 0 or target_height <= 0:
+            target_width = 400
+            target_height = 200
+        return target_width, target_height
 
     def _warp_roi(self, image, corners, width, height):
         """Warp ROI to target size."""

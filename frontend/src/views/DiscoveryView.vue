@@ -107,6 +107,15 @@
       </div>
     </n-flex>
   </template>
+  <n-flex class="watermeters-row" v-else>
+    <div class="add-card" @click="showAddSource = true" >
+      <div class="add-card-inner">
+        <n-icon><AddOutlined /></n-icon>
+        <span>Add watermeter</span>
+      </div>
+    </div>
+  </n-flex>
+
 </template>
 
 <script setup>
