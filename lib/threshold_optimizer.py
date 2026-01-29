@@ -11,6 +11,7 @@ import sqlite3
 from io import BytesIO
 from typing import List, Tuple, Optional
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -136,13 +137,19 @@ class ThresholdOptimizer:
         }
 
     def _decode_images(self, base64_images: List[str]) -> List[np.ndarray]:
-        """Decode base64 images to numpy arrays."""
+        """Decode base64 images to numpy arrays (converts RGB from storage to BGR for processing)."""
         images = []
         for b64 in base64_images:
             try:
                 image_data = base64.b64decode(b64)
                 image = Image.open(BytesIO(image_data))
-                images.append(np.array(image))
+                img_array = np.array(image)
+
+                # Convert RGB (from PIL/storage) to BGR for consistent OpenCV processing
+                if img_array.ndim == 3 and img_array.shape[2] >= 3:
+                    img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+
+                images.append(img_array)
             except Exception as e:
                 print(f"[ThresholdOptimizer] Failed to decode image: {e}")
                 continue

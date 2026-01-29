@@ -5,6 +5,7 @@ import json
 from PIL import Image
 from io import BytesIO
 import numpy as np
+import cv2
 
 from lib.history_correction import correct_value
 from lib.meter_processing.roi_extractors.orb_extractor import ORBExtractor
@@ -47,7 +48,11 @@ def reevaluate_digits(db_file: str, name: str, meter_preditor, config, offset: i
         for raw_image in raw_images:
             image_data = base64.b64decode(raw_image)
             image = Image.open(BytesIO(image_data))
-            digits.append(np.array(image))
+            # Convert from RGB (stored in DB) to BGR (expected by apply_threshold)
+            digit_array = np.array(image)
+            if len(digit_array.shape) == 3:
+                digit_array = cv2.cvtColor(digit_array, cv2.COLOR_RGB2BGR)
+            digits.append(digit_array)
 
         # Get current settings for the watermeter
         cursor.execute('''

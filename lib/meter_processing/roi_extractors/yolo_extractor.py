@@ -19,6 +19,9 @@ class YOLOExtractor(ROIExtractor):
         print("[ROIExtractor (YOLO)] Running YOLO region-of-interest detection...")
 
         img_np = np.array(input_image)
+        # Convert RGB (from PIL) to BGR for consistent OpenCV processing
+        if img_np.ndim == 3 and img_np.shape[2] >= 3:
+            img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
         # Ensure 3-channel RGB input (drop alpha or expand grayscale)
         if img_np.ndim == 2:
             img_np = np.repeat(img_np[:, :, None], 3, axis=2)
@@ -191,12 +194,15 @@ class YOLOExtractor(ROIExtractor):
             if rotated_cropped_img_ext.shape[0] > rotated_cropped_img_ext.shape[1]:
                 rotated_cropped_img_ext = cv2.rotate(rotated_cropped_img_ext, cv2.ROTATE_90_CLOCKWISE)
 
-        img_with_bbox = np.array(input_image)
+        # Create bounding box visualization (needs to be in RGB for PIL)
+        img_with_bbox = img_np.copy()
         boundingboxed_image = None
         if obb_coords is not None:
             obb_points = obb_coords.reshape(4, 2).astype(np.int32)
-            cv2.polylines(img_with_bbox, [obb_points], isClosed=True, color=(255, 0, 0), thickness=2)
-            pil_img = Image.fromarray(img_with_bbox)
+            cv2.polylines(img_with_bbox, [obb_points], isClosed=True, color=(0, 0, 255), thickness=2)  # BGR red
+            # Convert back to RGB for PIL
+            img_with_bbox_rgb = cv2.cvtColor(img_with_bbox, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(img_with_bbox_rgb)
             buffered = BytesIO()
             pil_img.save(buffered, format="PNG")
             boundingboxed_image = base64.b64encode(buffered.getvalue()).decode('utf-8')

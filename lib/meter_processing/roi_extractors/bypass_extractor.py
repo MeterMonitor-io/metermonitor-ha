@@ -13,12 +13,19 @@ class BypassExtractor(ROIExtractor):
         print("[ROIExtractor (Bypass)] Bypassing region-of-interest detection...")
         self.last_error = None
         img_np = np.array(input_image)
+
+        # Convert RGB (from PIL) to BGR for consistent OpenCV processing
+        if img_np.ndim == 3 and img_np.shape[2] >= 3:
+            img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
+
         height, width = img_np.shape[:2]
 
         img_with_bbox = img_np.copy()
         cv2.rectangle(img_with_bbox, (0, 0), (width - 1, height - 1), (255, 0, 0), 2)
 
-        pil_img = Image.fromarray(img_with_bbox)
+        # Convert back to RGB for PIL
+        img_with_bbox_rgb = cv2.cvtColor(img_with_bbox, cv2.COLOR_BGR2RGB) if img_with_bbox.ndim == 3 else img_with_bbox
+        pil_img = Image.fromarray(img_with_bbox_rgb)
         buffered = BytesIO()
         pil_img.save(buffered, format="PNG")
         boundingboxed_image = base64.b64encode(buffered.getvalue()).decode('utf-8')

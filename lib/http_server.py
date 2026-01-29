@@ -1520,6 +1520,10 @@ def prepare_setup_app(config, lifespan):
             # to numpy array
             image = np.array(image)
 
+            # Convert RGB (from PIL) to BGR for consistent OpenCV processing
+            if image.ndim == 3 and image.shape[2] >= 3:
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
             # Apply threshold with the passed values
             base64r, digits = meter_preditor.apply_threshold(image, threshold_low, threshold_high, islanding_padding, invert=invert)
 
