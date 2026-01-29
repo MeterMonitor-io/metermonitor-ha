@@ -39,24 +39,24 @@
     <n-flex :size="[0,0]" justify="space-around" align="center">
       <div>
         <n-flex justify="space-around" size="large" v-if="evaluation">
-          <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit" v-for="[i,base64] in evaluation['colored_digits'].slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" />
+          <img :style="{ width: digitWidth }" class="digit" v-for="[i,base64] in leadingDigits.entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" />
         </n-flex>
         <br>
         <n-flex justify="space-around" size="large" v-if="tresholdedImages" class="theme-revert">
-          <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in tresholdedImages.slice(0,-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
+          <img :style="{ width: digitWidth }" class="digit th" v-for="[i,base64] in leadingThresholded.entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
         </n-flex>
         <br>
         <n-slider :value="currentThreshold" @update:value="updateThreshold" range :step="1" :max="255" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="isDisabled"/>
         {{currentThreshold[0]}} - {{currentThreshold[1]}}
       </div>
-      <n-divider vertical />
-      <div>
+      <n-divider vertical v-if="showLastThreshold" />
+      <div v-if="showLastThreshold">
         <n-flex justify="space-around" size="large" v-if="evaluation">
-          <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit" v-for="[i,base64] in evaluation['colored_digits'].slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" />
+          <img :style="{ width: digitWidth }" class="digit" v-for="[i,base64] in trailingDigits.entries()" :src="'data:image/png;base64,' + base64" :key="i+'a'" alt="D" />
         </n-flex>
         <br>
         <n-flex justify="space-around" size="large" v-if="tresholdedImages" class="theme-revert">
-          <img :style="`width:calc(250px / ${evaluation['colored_digits'].length});`" class="digit th" v-for="[i,base64] in tresholdedImages.slice(-3).entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
+          <img :style="{ width: digitWidth }" class="digit th" v-for="[i,base64] in trailingThresholded.entries()" :src="'data:image/png;base64,' + base64" :key="i+'b'" alt="Watermeter" />
         </n-flex>
         <br>
         <n-slider :value="currentThresholdLast" @update:value="updateThresholdLast" range :step="1" :max="255" @mouseup="sendUpdate" style="max-width: 150px;" :disabled="isDisabled"/>
@@ -89,6 +89,7 @@ const props = defineProps([
     'threshold',
     'threshold_last',
     'islanding_padding',
+    'segments',
     'loading',
     'searchingThresholds',
     'thresholdSearchResult'
@@ -105,6 +106,34 @@ const refreshing = ref(false);
 const searchSteps = ref(10);
 
 const isDisabled = computed(() => props.loading || props.searchingThresholds);
+const segmentCount = computed(() => {
+  const evaluationCount = props.evaluation?.colored_digits?.length || 0;
+  const value = props.segments || evaluationCount;
+  return value || evaluationCount || 0;
+});
+const showLastThreshold = computed(() => segmentCount.value > 3);
+const leadingDigits = computed(() => {
+  const digits = props.evaluation?.colored_digits || [];
+  return showLastThreshold.value ? digits.slice(0, -3) : digits;
+});
+const trailingDigits = computed(() => {
+  const digits = props.evaluation?.colored_digits || [];
+  return showLastThreshold.value ? digits.slice(-3) : [];
+});
+const leadingThresholded = computed(() => {
+  const digits = tresholdedImages.value || [];
+  return showLastThreshold.value ? digits.slice(0, -3) : digits;
+});
+const trailingThresholded = computed(() => {
+  const digits = tresholdedImages.value || [];
+  return showLastThreshold.value ? digits.slice(-3) : [];
+});
+const digitWidth = computed(() => {
+  const count = props.evaluation?.colored_digits?.length || props.segments || 1;
+  const base = 250 / Math.max(count, 1);
+  const width = Math.min(base, 48);
+  return `${width}px`;
+});
 
 const updateThreshold = (value) => {
   currentThreshold.value = value;
@@ -145,6 +174,10 @@ watch(() => props.islanding_padding, (newVal) => {
   refreshThresholds();
 });
 
+watch(() => props.segments, () => {
+  refreshThresholds();
+});
+
 const sendUpdate = () => {
   emits('update', {
     threshold: currentThreshold.value,
@@ -162,8 +195,9 @@ const refreshThresholds = async () => {
   let narray = [];
   const base64s = props.evaluation["colored_digits"];
   for (let j = 0; j < base64s.length; j++) {
-    let isLast3 = j >= base64s.length - 3;
-    const newBase64 = await thresholdImage(base64s[j], isLast3? currentThresholdLast.value : currentThreshold.value, currentIslandingPadding.value);
+    const isLast3 = showLastThreshold.value && j >= base64s.length - 3;
+    const threshold = isLast3 ? currentThresholdLast.value : currentThreshold.value;
+    const newBase64 = await thresholdImage(base64s[j], threshold, currentIslandingPadding.value);
     narray.push(newBase64);
   }
   tresholdedImages.value = narray;

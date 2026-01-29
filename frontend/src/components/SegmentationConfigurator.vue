@@ -55,13 +55,13 @@
       <template #trigger>
         Segments
       </template>
-      <span>Number of segments (5-10)</span>
+      <span>Number of segments (2-10)</span>
     </n-tooltip>
     <n-input-number
       :value="segments"
       @update:value="handleUpdate('segments', $event)"
       :max="10"
-      :min="5"
+      :min="2"
       :disabled="loading">
     </n-input-number><br>
     <n-flex align="center" :size="8" class="padd">

@@ -254,7 +254,8 @@ import {
   ArchiveOutlined,
   DownloadOutlined,
   WarningAmberOutlined,
-  ErrorOutlineOutlined
+  ErrorOutlineOutlined,
+  RefreshOutlined
 } from '@vicons/material';
 import WifiStatus from "@/components/WifiStatus.vue";
 import {useWatermeterStore} from "@/stores/watermeterStore";
@@ -314,6 +315,7 @@ const menuOptions = computed(() => {
   }
   options.push(
     { label: 'Setup', key: 'setup', icon: () => h(NIcon, null, { default: () => h(SettingsOutlined) }) },
+    { label: 'Reevaluate Latest', key: 'reevaluate-latest', icon: () => h(NIcon, null, { default: () => h(RefreshOutlined) }) },
     { label: 'Clear Evals', key: 'clear-evals', icon: () => h(NIcon, null, { default: () => h(PlaylistRemoveOutlined) }) },
     { label: 'Reset Corr. Alg.', key: 'reset-corr-alg', icon: () => h(NIcon, null, { default: () => h(PlaylistRemoveOutlined) }) },
     { type: 'divider', key: 'divider' },
@@ -354,6 +356,23 @@ const handleMenuSelect = (key) => {
       positiveText: 'Clear',
       negativeText: 'Cancel',
       onPositiveClick: () => emit('clearEvaluations')
+    });
+    return;
+  }
+  if (key === 'reevaluate-latest') {
+    dialog.warning({
+      title: 'Reevaluate Latest',
+      content: 'This will reevaluate the latest capture using current settings. Are you sure?',
+      positiveText: 'Reevaluate',
+      negativeText: 'Cancel',
+      onPositiveClick: async () => {
+        try {
+          await apiService.post(`api/watermeters/${props.id}/evaluations/reevaluate?skip_setup_overwriting=true`);
+          await store.fetchAll(props.id);
+        } catch (e) {
+          console.error('Failed to reevaluate latest:', e);
+        }
+      }
     });
     return;
   }

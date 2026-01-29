@@ -64,6 +64,7 @@
               :threshold="threshold"
               :threshold_last="thresholdLast"
               :islanding_padding="islandingPadding"
+              :segments="segments"
               :loading="loading"
               :searching-thresholds="searchingThresholds"
               :threshold-search-result="thresholdSearchResult"

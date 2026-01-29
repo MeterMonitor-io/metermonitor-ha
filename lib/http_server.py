@@ -10,7 +10,7 @@ from PIL import Image
 import cv2
 from fastapi import FastAPI, HTTPException, Body, Header, Depends
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, conint
 import base64
 import sqlite3
 import zlib
@@ -100,7 +100,7 @@ def prepare_setup_app(config, lifespan):
         threshold_last_low: int
         threshold_last_high: int
         islanding_padding: int
-        segments: int
+        segments: conint(ge=2)
         rotated_180: bool
         shrink_last_3: bool
         extended_last_digit: bool
@@ -124,7 +124,7 @@ def prepare_setup_app(config, lifespan):
         threshold_last_low: int
         threshold_last_high: int
         islanding_padding: int
-        segments: int
+        segments: conint(ge=2)
         rotated_180: bool
         shrink_last_3: bool
         extended_last_digit: bool
@@ -1258,9 +1258,9 @@ def prepare_setup_app(config, lifespan):
             raise HTTPException(status_code=500, detail=f"Threshold search failed: {str(e)}")
 
     @app.post("/api/watermeters/{name}/evaluations/reevaluate", dependencies=[Depends(authenticate)])
-    def reevaluate_latest(name: str):
+    def reevaluate_latest(name: str, skip_setup_overwriting: bool = False):
         try:
-            r = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=False)
+            r = reevaluate_latest_picture(config['dbfile'], name, meter_preditor, config, skip_setup_overwriting=skip_setup_overwriting)
             if r is None:
                 return {"result": False, "error": meter_preditor.last_error or "No result found"}
             _, _, bbox_base64 = r

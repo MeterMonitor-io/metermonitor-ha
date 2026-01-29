@@ -101,8 +101,9 @@ class MeterPredictor:
                 rotated_cropped_img_ext = cv2.rotate(rotated_cropped_img_ext, cv2.ROTATE_180)
 
         # Split the cropped meter into segments vertical parts for classification
-        if segments == 0:
-            return [], []
+        if segments < 2:
+            self.last_error = "Segments must be at least 2"
+            return [], [], None, None
         part_width = rotated_cropped_img.shape[1] // segments
 
         base64s = []
@@ -122,8 +123,10 @@ class MeterPredictor:
             # Extract segment from last_x to last_x + t_part_width
             part = rotated_cropped_img[:, last_x: last_x + t_part_width]
 
-            if extended_last_digit and i == segments - 1:
-                part = rotated_cropped_img_ext[:, last_x: last_x + t_part_width]
+            if extended_last_digit and i == segments - 1 and rotated_cropped_img_ext is not None:
+                ext_end_x = rotated_cropped_img_ext.shape[1]
+                ext_start_x = max(ext_end_x - t_part_width, 0)
+                part = rotated_cropped_img_ext[:, ext_start_x:ext_end_x]
             last_x = last_x + t_part_width
 
             # Convert segment to base64 string for storage
@@ -143,6 +146,9 @@ class MeterPredictor:
 
         # Convert to base64 for temporary storage
         for part in digits:
+            # Store cutouts as RGB to avoid BGR/RGB channel confusion.
+            if len(part.shape) == 3:
+                part = cv2.cvtColor(part, cv2.COLOR_BGR2RGB)
             pil_img = Image.fromarray(part)
 
             buffered = BytesIO()
@@ -159,8 +165,9 @@ class MeterPredictor:
         threshold_low, threshold_high = int(threshold_low), int(threshold_high)
         islanding_padding = int(islanding_padding)
 
-        # Convert the digit image to grayscale.
-        digit = cv2.cvtColor(digit, cv2.COLOR_BGR2GRAY)
+        # Convert the digit image to grayscale if needed
+        if len(digit.shape) == 3:
+            digit = cv2.cvtColor(digit, cv2.COLOR_BGR2GRAY)
 
         # Apply thresholding to get a binary image.
         digit = cv2.inRange(digit, threshold_low, threshold_high)
