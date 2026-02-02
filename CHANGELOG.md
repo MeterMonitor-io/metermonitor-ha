@@ -1,5 +1,9 @@
-v3.2.0 - 01.02.2026
-- Fixed non-mqtt sources not publishing capture events to MQTT broker
+v3.2.1 - 02.02.2026
+- Fixed non-MQTT sources (HTTP, Home Assistant Camera) not publishing meter values to MQTT broker
+  - Added dedicated MQTT publisher client for polling/capture operations
+  - HTTP and HA Camera sources now publish both discovery registration and meter values
+  - MQTT client is injected into PollingHandler and HTTP server capture flows
+- All source types (MQTT, HTTP, HA Camera) now have consistent MQTT publishing behavior
 
 v3.1.1-beta - 28.01.2026
 - Added configurable correctional algorithm with Full/Light modes

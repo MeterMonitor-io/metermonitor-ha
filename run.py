@@ -59,11 +59,27 @@ run_migrations(config['dbfile'])
 
 MQTT_CONFIG = config['mqtt']
 
+# Create an outbound-only MQTT client for publishing (used by polling/http capture paths).
+# The inbound MQTT handler creates its own client and also subscribes.
+_publisher_mqtt_client = None
+try:
+    import paho.mqtt.client as mqtt
+
+    _publisher_mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+    if MQTT_CONFIG.get('username') and MQTT_CONFIG.get('password'):
+        _publisher_mqtt_client.username_pw_set(MQTT_CONFIG.get('username'), MQTT_CONFIG.get('password'))
+    _publisher_mqtt_client.connect(MQTT_CONFIG.get('broker', 'localhost'), int(MQTT_CONFIG.get('port', 1883)))
+    _publisher_mqtt_client.loop_start()
+    print("[INIT] MQTT publisher client connected (for polling/http sources)")
+except Exception as e:
+    print(f"[INIT] MQTT publisher client not available: {e}")
+    _publisher_mqtt_client = None
+
 # start application. if http is enabled, start the http server
 # if not, start only the mqtt handler
 
 # start polling service
-polling_handler = PollingHandler(config, db_file=config['dbfile'])
+polling_handler = PollingHandler(config, db_file=config['dbfile'], mqtt_client=_publisher_mqtt_client)
 polling_handler.start()
 
 if config['http']['enabled']:
