@@ -35,6 +35,7 @@ from lib.ha_auth import get_ha_token, add_ha_auth_header
 from lib.threshold_optimizer import search_thresholds_for_meter
 from lib.capture_utils import capture_and_process_source, capture_from_ha_source, capture_from_http_source
 from lib.meter_processing.roi_extractors.orb_extractor import ORBExtractor
+from lib.meter_processing.roi_extractors.static_rect_extractor import StaticRectExtractor
 
 
 # http server class
@@ -388,11 +389,17 @@ def prepare_setup_app(config, lifespan):
         }
 
         extractor_type = (payload.extractor or "").lower()
-        if extractor_type not in {"orb"}:
+        if extractor_type not in {"orb", "static_rect"}:
             raise HTTPException(status_code=400, detail="Invalid extractor type for templates")
 
         try:
-            extractor = ORBExtractor(reference_image, config_dict)
+            if extractor_type == "orb":
+                extractor = ORBExtractor(reference_image, config_dict)
+            elif extractor_type == "static_rect":
+                extractor = StaticRectExtractor(reference_image, config_dict)
+            else:
+                raise ValueError(f"Unsupported extractor type: {extractor_type}")
+
             ref_b64, config_json, precomputed_b64 = extractor.serialize_template()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create template: {e}")

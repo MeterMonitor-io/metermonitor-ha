@@ -122,7 +122,7 @@ export const useSetupStore = defineStore('setup', () => {
 
     const previousExtractor = watermeterStore.settings.roi_extractor || 'yolo';
     const nextExtractor = data.roiExtractor || previousExtractor;
-    const isTemplateExtractor = (value) => ['orb'].includes(value);
+    const isTemplateExtractor = (value) => ['orb', 'static_rect'].includes(value);
 
     watermeterStore.settings.segments = data.segments;
     watermeterStore.settings.extended_last_digit = data.extendedLastDigit;
@@ -303,7 +303,7 @@ export const useSetupStore = defineStore('setup', () => {
     templateSaving.value = true;
     try {
       const watermeterStore = useWatermeterStore();
-      if (!['orb'].includes(watermeterStore.settings.roi_extractor)) {
+      if (!['orb', 'static_rect'].includes(watermeterStore.settings.roi_extractor)) {
         console.error('Current extractor does not require a template');
         return;
       }

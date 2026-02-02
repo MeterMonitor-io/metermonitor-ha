@@ -1,9 +1,15 @@
-v3.2.1 - 02.02.2026
+v3.2.x - 02.02.2026
 - Fixed non-MQTT sources (HTTP, Home Assistant Camera) not publishing meter values to MQTT broker
   - Added dedicated MQTT publisher client for polling/capture operations
   - HTTP and HA Camera sources now publish both discovery registration and meter values
   - MQTT client is injected into PollingHandler and HTTP server capture flows
 - All source types (MQTT, HTTP, HA Camera) now have consistent MQTT publishing behavior
+- Added new ROI Extractor: **Static Rect**
+  - Simple fixed rectangle cropping without alignment or transformation
+  - User defines 4 corner points, extractor crops that exact region
+  - Useful for stable camera positions where YOLO is unreliable
+  - Supports perspective transform for non-axis-aligned rectangles
+  - Available in frontend setup wizard alongside YOLO, BYPASS, and ORB extractors
 
 v3.1.1-beta - 28.01.2026
 - Added configurable correctional algorithm with Full/Light modes
