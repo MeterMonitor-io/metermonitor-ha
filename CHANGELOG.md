@@ -1,3 +1,6 @@
+v3.2.0 - 01.02.2026
+- Fixed non-mqtt sources not publishing capture events to MQTT broker
+
 v3.1.1-beta - 28.01.2026
 - Added configurable correctional algorithm with Full/Light modes
   - Full mode: Complete correction with positive flow check, max flow rate validation, and fallback handling

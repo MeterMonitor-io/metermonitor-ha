@@ -141,7 +141,7 @@ def capture_from_http_source(source_config):
 
     return raw, fmt, False
 
-def process_captured_image(db_file, name, raw_image, format_, config, meter_predictor, publish=True):
+def process_captured_image(db_file, name, raw_image, format_, config, meter_predictor, publish=True, mqtt_client=None):
     """Process the captured image: save to DB and reevaluate."""
     b64 = base64.b64encode(raw_image).decode('utf-8')
     img = Image.open(BytesIO(raw_image))
@@ -153,6 +153,7 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
         # Update or insert into watermeters
         cursor.execute("SELECT 1 FROM watermeters WHERE name = ?", (name,))
         exists = cursor.fetchone()
+        meter_is_new = False
         if exists:
             cursor.execute('''
                 UPDATE watermeters 
@@ -213,14 +214,24 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
                 None,
                 True
             ))
+            meter_is_new = True
 
         conn.commit()
         print(f"[CAPTURE] Saved image for {name}")
 
+        # If the meter is new and we have an MQTT client, publish HA discovery registration.
+        if meter_is_new and mqtt_client is not None:
+            try:
+                from lib.functions import publish_registration
+                publish_registration(mqtt_client, config, name, "value")
+                print(f"[CAPTURE] Published MQTT registration for new meter {name}")
+            except Exception as e:
+                print(f"[CAPTURE] Failed to publish MQTT registration for {name}: {e}")
+
         # Process the image
         try:
             result = reevaluate_latest_picture(db_file, name, meter_predictor,
-                                               config, publish=publish)
+                                               config, publish=publish, mqtt_client=mqtt_client)
             if result and len(result) >= 3:
                 boundingboxed_image = result[2]
             else:
@@ -251,7 +262,7 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
 
     return timestamp
 
-def capture_and_process_source(config, db_file, source_row, meter_predictor):
+def capture_and_process_source(config, db_file, source_row, meter_predictor, mqtt_client=None):
     config_json = source_row['config_json']
     if not config_json:
         return
@@ -268,7 +279,7 @@ def capture_and_process_source(config, db_file, source_row, meter_predictor):
             raw_image, format_, _ = capture_from_http_source(cfg)
         else:
             raise ValueError(f"Unsupported source type: {source_type}")
-        timestamp = process_captured_image(db_file, source_row['name'], raw_image, format_, config, meter_predictor)
+        timestamp = process_captured_image(db_file, source_row['name'], raw_image, format_, config, meter_predictor, publish=True, mqtt_client=mqtt_client)
 
         # Update source last_success_ts
         with sqlite3.connect(db_file) as conn:
