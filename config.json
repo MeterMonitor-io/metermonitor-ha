@@ -26,7 +26,6 @@
     "allow_negative_correction": true,
     "publish_to": "homeassistant/sensor/watermeter_{device}/",
     "dbfile": "/data/metermonitor.db",
-
     "homeassistant": {
       "use_supervisor_token": true,
       "url": "http://supervisor/core",

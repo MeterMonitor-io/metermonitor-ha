@@ -237,7 +237,9 @@ const onSegmentationNext = () => {
   currentlyFocusedStep.value = 2;
 
   // Automatically start threshold search with default depth (10)
-  setupStore.searchThresholds(id, 10);
+  if (import.meta.env.VITE_E2E_SKIP_THRESHOLD_SEARCH !== 'true') {
+    setupStore.searchThresholds(id, 10);
+  }
 };
 
 onMounted(() => {

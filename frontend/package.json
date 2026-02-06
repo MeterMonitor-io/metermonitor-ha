@@ -5,22 +5,34 @@
   "scripts": {
     "dev": "vite",
     "serve": "vite preview",
-    "build": "vite build"
+    "build": "vite build",
+    "test:e2e": "VITE_HOST=/ VITE_E2E_SKIP_THRESHOLD_SEARCH=true yarn build && playwright test",
+    "test:e2e:headed": "VITE_HOST=/ VITE_E2E_SKIP_THRESHOLD_SEARCH=true yarn build && playwright test --headed",
+    "test:component": "vitest run",
+    "test:component:watch": "vitest"
   },
   "dependencies": {
     "@vicons/material": "^0.13.0",
     "apexcharts": "^4.4.0",
     "naive-ui": "^2.41.0",
     "pinia": "^3.0.4",
+    "playwright": "^1.58.1",
     "vue": "^3.2.13",
     "vue-router": "^4.5.0",
     "vue3-apexcharts": "^1.8.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/test-utils": "^2.4.6",
+    "aedes": "^0.51.2",
     "eslint": "^7.32.0",
     "eslint-plugin-vue": "^8.0.3",
-    "vite": "^6.0.6"
+    "happy-dom": "^14.11.0",
+    "mqtt": "^5.7.2",
+    "vite": "^6.0.6",
+    "vitest": "^1.6.0",
+    "ws": "^8.17.1"
   },
   "eslintConfig": {
     "root": true,

@@ -12,9 +12,9 @@ export const useWatermeterStore = defineStore('watermeter', () => {
   const capturing = ref(false);
   const settings = reactive({
     threshold_low: 0,
-    threshold_high: 100,
+    threshold_high: 125,
     threshold_last_low: 0,
-    threshold_last_high: 100,
+    threshold_last_high: 125,
     islanding_padding: 0,
     segments: 0,
     extended_last_digit: false,

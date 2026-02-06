@@ -147,9 +147,9 @@ class MQTTHandler:
                                 ''', (
                         data['name'],
                         0,
-                        100,
+                        125,
                         0,
-                        100,
+                        125,
                         20,
                         7,
                         False,

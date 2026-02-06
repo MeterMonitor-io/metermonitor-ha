@@ -1,94 +1,116 @@
-name: Docker Image CI
+name: Release
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - "v*.*.*"
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: phiph-s/metermonitor-managementserver
+permissions:
+  contents: write        # to push to main + create GitHub Release
+  packages: write        # to push to GHCR
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
-        - name: Checkout
-          uses: actions/checkout@v4
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-        # REMOVED: Install Node.js
-        # REMOVED: Install dependencies and build frontend
-        # The Dockerfile handles the frontend build now.
+      - name: Derive version from tag
+        id: v
+        run: |
+          TAG="${GITHUB_REF_NAME}"      # e.g. v4.0.0
+          VERSION="${TAG#v}"            # 4.0.0
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-        - name: Log in to the Container registry
-          uses: docker/login-action@v3
-          with:
-            registry: ghcr.io
-            username: ${{ github.actor }}
-            password: ${{ secrets.GHCR_PAT }}
+      - name: Ensure tag commit is on develop
+        run: |
+          git fetch origin develop
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -q "origin/develop"; then
+            echo "Tag commit is not contained in develop. Aborting."
+            exit 1
+          fi
 
-        - name: Extract Info
-          id: extract_info
-          shell: bash
-          run: |
-            VERSION=$(jq -r '.version' config.json)
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+      # ---- run tests again (or call reusable workflow) ----
+      - name: Run tests
+        run: |
+          echo "Run your tests here"
+          # exit nonzero if tests fail
 
-        - name: Docker meta
-          id: meta
-          uses: docker/metadata-action@v5
-          with:
-            images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+      # ---- promote to main + bump config.json there ----
+      - name: Configure git author
+        run: |
+          git config user.name  "github-actions"
+          git config user.email "github-actions@github.com"
 
-        - name: Set up QEMU
-          uses: docker/setup-qemu-action@v3
+      - name: Promote develop -> main (fast-forward or merge)
+        run: |
+          git fetch origin main develop
+          git checkout main
+          # Option A: fast-forward only (clean history)
+          git merge --ff-only origin/develop
 
-        - name: Set up Docker Buildx
-          uses: docker/setup-buildx-action@v3
+      - name: Bump config.json version on main
+        run: |
+          VERSION="${{ steps.v.outputs.version }}"
+          jq --arg v "$VERSION" '.version=$v' config.json > config.json.tmp
+          mv config.json.tmp config.json
 
-        - name: Determine platforms
-          id: platforms
-          run: |
-            if [ "${{ github.event_name }}" == "pull_request" ]; then
-              echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
-            else
-              echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
-            fi
+          git add config.json
+          git commit -m "Release $VERSION"
+          git push origin main
 
-        - name: Build and push container image
-          uses: docker/build-push-action@v6.13.0
-          id: docker_build
-          with:
-            context: .
-            platforms: ${{ steps.platforms.outputs.platforms }}
-            push: true
-            cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-            cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
-            tags: |
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.extract_info.outputs.version }}
-            labels: |
-              org.opencontainers.image.title="Meter Monitor"
-              org.opencontainers.image.description="Integrate ESP32 based meter monitor cams with Home Assistant using AI"
-              org.opencontainers.image.vendor=HSRM
-              org.opencontainers.image.authors="Philipp Seelos"
-              org.opencontainers.image.url=https://github.com/phiph-s/metermonitor-managementserver
-              org.opencontainers.image.source=https://github.com/phiph-s/metermonitor-managementserver
-              org.opencontainers.image.version=${{ steps.extract_info.outputs.version }}
-              io.hass.name="Meter Monitor"
-              io.hass.url=https://github.com/phiph-s/metermonitor-managementserver
-              io.hass.version=${{ steps.extract_info.outputs.version }}
-              io.hass.type=addon
-              io.hass.arch=armv7|aarch64|amd64
-            annotations: |
-              org.opencontainers.image.title="Meter Monitor"
-              org.opencontainers.image.description="Integrate ESP32 based meter monitor cams with Home Assistant using AI"
-              org.opencontainers.image.vendor=HSRM
-              org.opencontainers.image.authors="Philipp Seelos"
-              org.opencontainers.image.version=${{ steps.extract_info.outputs.version }}
-              org.opencontainers.image.url=https://github.com/phiph-s/metermonitor-managementserver             
+      # ---- build & push image to GHCR (linked to repo) ----
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
-        - name: Image digest
-          run: echo ${{ steps.docker_build.outputs.digest }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (IMPORTANT for linking)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/metermonitor-ha
+          tags: |
+            type=raw,value=${{ steps.v.outputs.version }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=MeterMonitor HA Add-on
+            org.opencontainers.image.description=Home Assistant add-on for MeterMonitor
+            org.opencontainers.image.source=https://github.com/MeterMonitor-io/metermonitor-ha
+            org.opencontainers.image.url=https://github.com/MeterMonitor-io/metermonitor-ha
+            org.opencontainers.image.documentation=https://github.com/MeterMonitor-io/metermonitor-ha
+            org.opencontainers.image.version=${{ steps.v.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # ---- create GitHub Release for the tag ----
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true

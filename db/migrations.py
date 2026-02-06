@@ -19,7 +19,8 @@ def run_migrations(db_file):
                            picture_height    INTEGER,
                            picture_length    INTEGER,
                            picture_data      TEXT,
-                           setup             BOOLEAN DEFAULT 0
+                           setup             BOOLEAN DEFAULT 0,
+                           picture_data_bbox BLOB
                        )
                        ''')
         cursor.execute('''
@@ -36,29 +37,55 @@ def run_migrations(db_file):
                            shrink_last_3       BOOLEAN,
                            extended_last_digit BOOLEAN,
                            max_flow_rate       FLOAT,
-                           roi_extractor       TEXT,
-                           template_id         TEXT,
+                           conf_threshold      REAL DEFAULT NULL,
+                           roi_extractor       TEXT DEFAULT 'yolo',
+                           template_id         TEXT DEFAULT NULL,
+                           use_correctional_alg BOOLEAN DEFAULT true,
                            FOREIGN KEY (name) REFERENCES watermeters (name)
                        )
                        ''')
-        # Add evaluations table
+        # Add evaluations table (latest schema)
         cursor.execute('''
                        CREATE TABLE IF NOT EXISTS evaluations
                        (
-                           name TEXT,
-                           eval TEXT,
+                           id INTEGER PRIMARY KEY AUTOINCREMENT,
+                           name TEXT NOT NULL,
+                           colored_digits TEXT,
+                           th_digits TEXT,
+                           predictions TEXT,
+                           timestamp DATETIME,
+                           result INTEGER,
+                           total_confidence REAL,
+                           outdated BOOLEAN DEFAULT 0,
+                           denied_digits TEXT,
+                           th_digits_inverted TEXT,
+                           used_confidence REAL DEFAULT -1.0,
+                           flow_rate_m3h REAL,
+                           delta_m3 REAL,
+                           delta_raw INTEGER,
+                           time_diff_min REAL,
+                           rejection_reason TEXT,
+                           negative_correction_applied BOOLEAN,
+                           fallback_digit_count INTEGER,
+                           digits_changed_vs_last INTEGER,
+                           digits_changed_vs_top_pred INTEGER,
+                           prediction_rank_used_counts TEXT,
+                           denied_digits_count INTEGER,
+                           timestamp_adjusted BOOLEAN,
                            FOREIGN KEY (name) REFERENCES watermeters (name)
                        )
                        ''')
         cursor.execute('''
                        CREATE TABLE IF NOT EXISTS history
                        (
-                           name              TEXT,
-                           value             INTEGER,
-                           confidence        FLOAT,
-                           target_brightness FLOAT,
-                           timestamp         TEXT,
-                           manual            BOOLEAN,
+                           id INTEGER PRIMARY KEY AUTOINCREMENT,
+                           name TEXT NOT NULL,
+                           value INTEGER,
+                           confidence REAL,
+                           used_confidence REAL DEFAULT -1.0,
+                           target_brightness REAL,
+                           timestamp TEXT,
+                           manual BOOLEAN,
                            FOREIGN KEY (name) REFERENCES watermeters (name)
                        )
                        ''')

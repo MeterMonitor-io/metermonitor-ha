@@ -25,7 +25,7 @@
             </n-button>
           </n-flex>
         </div>
-        <div class="add-card" @click="showAddSource = true" style="margin-left: 20px;">
+        <div class="add-card" data-testid="add-watermeter-card" @click="showAddSource = true" style="margin-left: 20px;">
           <div class="add-card-inner">
             <n-icon><AddOutlined /></n-icon>
             <span>Add watermeter</span>
@@ -99,7 +99,7 @@
           :source_type="item[7]"
           @removed="getData"
       />
-      <div class="add-card" @click="showAddSource = true">
+      <div class="add-card" data-testid="add-watermeter-card" @click="showAddSource = true">
         <div class="add-card-inner">
           <n-icon><AddOutlined /></n-icon>
           <span>Add watermeter</span>
@@ -108,7 +108,7 @@
     </n-flex>
   </template>
   <n-flex class="watermeters-row" v-else>
-    <div class="add-card" @click="showAddSource = true" >
+    <div class="add-card" data-testid="add-watermeter-card" @click="showAddSource = true" >
       <div class="add-card-inner">
         <n-icon><AddOutlined /></n-icon>
         <span>Add watermeter</span>
