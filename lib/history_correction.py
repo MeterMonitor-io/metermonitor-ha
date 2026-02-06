@@ -94,11 +94,12 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
                     continue
 
                 prediction = predictions[0]
+                prefix_increased = i > 0 and int(correctedValue) > int(last_value[:i])
 
                 # Replace rotation class or denied digits with last value
                 if prediction[0] == 'r' or denied_digits[i]:
                     # check if the digit before has changed upwards, set the digit to 0
-                    if i > 0 and int(correctedValue[-1]) > int(last_value[i-1]):
+                    if prefix_increased:
                         chosen_digit = '0'
                     else:
                         chosen_digit = lastChar
@@ -159,6 +160,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
 
             predictions = new_results[i]
             digit_appended = False
+            prefix_increased = i > 0 and int(correctedValue) > int(last_value[:i])
             for prediction_index, prediction in enumerate(predictions):
 
                 tempValue = correctedValue
@@ -167,7 +169,7 @@ def correct_value(db_file: str, name: str, new_eval, allow_negative_correction =
                 # replacement of the rotation class
                 if prediction[0] == 'r' or denied_digits[i]:
                     # check if the digit before has changed upwards, set the digit to 0
-                    if i > 0 and int(correctedValue[-1]) > int(last_value[i-1]):
+                    if prefix_increased:
                         chosen_digit = '0'
                         tempConfidence *= prediction[1]
                     else:
