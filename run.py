@@ -17,24 +17,35 @@ config = {}
 # parse settings.json or options.json
 # options.json is used in the addon, while settings.json is used in standalone mode
 # the addon will merge the options.json with the contents of ha_default_settings.json
+#
+# Optional override: set METERMONITOR_SETTINGS to a custom config file path
+# (useful for tests or custom deployments).
 
 # ha_default_settings.json contains settings that should not be changed by the user when running in Home Assistant
 
-path = '/data/options.json'
-if not os.path.exists(path):
-    print("[INIT] Running standalone, using settings.json")
-    path = 'settings.json'
-    with open(path, 'r') as f:
+override_path = os.environ.get("METERMONITOR_SETTINGS")
+if override_path:
+    print(f"[INIT] Using config override from METERMONITOR_SETTINGS: {override_path}")
+    if not os.path.exists(override_path):
+        raise FileNotFoundError(f"Config override not found: {override_path}")
+    with open(override_path, 'r') as f:
         config = json.load(f)
 else:
-    print("[INIT] Running as Home Assistant addon, using options.json and merging with ha_default_settings.json")
-    #load options.json
-    with open(path, 'r') as f:
-        config = json.load(f)
+    path = '/data/options.json'
+    if not os.path.exists(path):
+        print("[INIT] Running standalone, using settings.json")
+        path = 'settings.json'
+        with open(path, 'r') as f:
+            config = json.load(f)
+    else:
+        print("[INIT] Running as Home Assistant addon, using options.json and merging with ha_default_settings.json")
+        #load options.json
+        with open(path, 'r') as f:
+            config = json.load(f)
 
-    # merge missing options in options.json with ha_default_settings.json (deep merge)
-    with open('ha_default_settings.json', 'r') as f:
-        defaults = json.load(f)
+        # merge missing options in options.json with ha_default_settings.json (deep merge)
+        with open('ha_default_settings.json', 'r') as f:
+            defaults = json.load(f)
 
         def deep_merge(target, source):
             """Deep merge source into target, preserving non-None values in target"""

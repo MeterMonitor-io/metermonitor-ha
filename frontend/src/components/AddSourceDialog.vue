@@ -5,11 +5,11 @@
       <n-form :model="form" :disabled="saving || testing" label-placement="top">
         <n-grid :cols="24" :x-gap="12" :y-gap="8">
           <n-form-item-gi :span="24" label="Source type">
-            <n-select v-model:value="selectedType" :options="typeOptions" />
+          <n-select v-model:value="selectedType" :options="typeOptions" data-testid="source-type-select" />
           </n-form-item-gi>
 
           <n-form-item-gi :span="12" label="Watermeter name" v-if="selectedType !== 'mqtt'">
-            <n-input v-model:value="form.name" placeholder="e.g. Hauptzaehler" />
+            <n-input v-model:value="form.name" placeholder="e.g. Hauptzaehler" data-testid="source-name-input" />
           </n-form-item-gi>
 
           <n-form-item-gi :span="6" label="Enabled" v-if="selectedType !== 'mqtt'">
@@ -17,7 +17,7 @@
           </n-form-item-gi>
 
           <n-form-item-gi :span="6" label="Poll interval (m)" v-if="selectedType !== 'mqtt'">
-            <n-input-number v-model:value="form.poll_interval_m" :min="1" :max="3600" />
+            <n-input-number v-model:value="form.poll_interval_m" :min="1" :max="3600" data-testid="source-poll-interval" />
           </n-form-item-gi>
 
           <!-- Home Assistant camera config -->
@@ -29,6 +29,7 @@
                 filterable
                 placeholder="Select a Home Assistant camera.* entity"
                 :loading="loadingCameras"
+                data-testid="ha-camera-select"
               />
             </n-form-item-gi>
 
@@ -88,7 +89,7 @@
           <!-- HTTP source config -->
           <template v-if="selectedType === 'http'">
             <n-form-item-gi :span="24" label="Image URL">
-              <n-input v-model:value="form.http_url" placeholder="https://example.com/camera.jpg" />
+            <n-input v-model:value="form.http_url" placeholder="https://example.com/camera.jpg" data-testid="http-url-input" />
             </n-form-item-gi>
 
             <n-form-item-gi :span="12" label="Headers (JSON)">
@@ -144,7 +145,7 @@
 
       <n-space justify="end">
         <n-button @click="close" :disabled="saving || testing">Cancel</n-button>
-        <n-button type="success" @click="create" :loading="saving" :disabled="!canCreate || testing">
+        <n-button type="success" @click="create" :loading="saving" :disabled="!canCreate || testing" data-testid="create-source-button">
           Create source
         </n-button>
       </n-space>

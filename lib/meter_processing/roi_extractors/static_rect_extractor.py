@@ -163,7 +163,10 @@ class StaticRectExtractor(ROIExtractorTemplated):
 
         print(f"[StaticRect] Cropped region: {self.target_width}x{self.target_height}")
 
-        return cropped, cropped_ext, boundingboxed_image
+        success, buffer = cv2.imencode(".png", boundingboxed_image)
+        boundingboxed_image_b64 = base64.b64encode(buffer).decode("utf-8") if success else None
+
+        return cropped, cropped_ext, boundingboxed_image_b64
 
     @classmethod
     def from_database(cls, db_connection, template_id):

@@ -1,6 +1,6 @@
 {
   "name": "Meter Monitor",
-  "version": "3.2.3",
+  "version": "3.3.0",
   "image": "ghcr.io/phiph-s/metermonitor-managementserver",
   "slug": "meter_monitor",
   "description": "Integrate ESP32 based meter monitor cams with Home Assistant using AI",
@@ -26,7 +26,6 @@
     "allow_negative_correction": true,
     "publish_to": "homeassistant/sensor/watermeter_{device}/",
     "dbfile": "/data/metermonitor.db",
-
     "homeassistant": {
       "use_supervisor_token": true,
       "url": "http://supervisor/core",

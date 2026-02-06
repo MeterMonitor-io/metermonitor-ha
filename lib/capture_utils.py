@@ -200,9 +200,9 @@ def process_captured_image(db_file, name, raw_image, format_, config, meter_pred
             ''', (
                 name,
                 0,
-                100,
+                125,
                 0,
-                100,
+                125,
                 20,
                 7,
                 False,
