@@ -140,7 +140,7 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
 
         # Use the meter predictor to extract the digits from the image
         extractor_instance = None
-        if roi_extractor in {"orb"}:
+        if roi_extractor in {"orb", "static_rect"}:
             if not template_id:
                 print(f"[Eval ({name})] Template required for extractor '{roi_extractor}' but none is set.")
                 meter_preditor.last_error = f"Template required for extractor '{roi_extractor}'."
@@ -148,6 +148,9 @@ def reevaluate_latest_picture(db_file: str, name:str, meter_preditor, config, pu
             try:
                 if roi_extractor == "orb":
                     extractor_instance = ORBExtractor.from_database(conn, template_id)
+                elif roi_extractor == "static_rect":
+                    from lib.meter_processing.roi_extractors.static_rect_extractor import StaticRectExtractor
+                    extractor_instance = StaticRectExtractor.from_database(conn, template_id)
             except Exception as e:
                 print(f"[Eval ({name})] Failed to load template '{template_id}': {e}")
                 meter_preditor.last_error = f"Failed to load template: {e}"

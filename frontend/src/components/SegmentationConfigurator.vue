@@ -177,11 +177,12 @@ const formattedTimestamp = computed(() => {
 const extractorOptions = [
   { label: 'AUTO - Use the YOLOv11 AI-model', value: 'yolo' },
   { label: 'BYPASS - Directly segment received images', value: 'bypass' },
-  { label: 'ORB - (Very fast) Template-based extractor', value: 'orb' }
+  { label: 'ORB - (Very fast) Template-based extractor', value: 'orb' },
+  { label: 'STATIC RECT - Fixed rectangle (no alignment)', value: 'static_rect' }
 ];
 
 const currentExtractor = computed(() => props.roiExtractor || 'yolo');
-const isTemplateExtractor = computed(() => ['orb'].includes(currentExtractor.value));
+const isTemplateExtractor = computed(() => ['orb', 'static_rect'].includes(currentExtractor.value));
 const hasTemplatePoints = computed(() => Array.isArray(props.templatePoints) && props.templatePoints.length === 4);
 
 const handleUpdate = (field, value) => {

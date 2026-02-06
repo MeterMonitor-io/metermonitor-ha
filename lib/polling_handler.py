@@ -12,10 +12,11 @@ import traceback
 
 class PollingHandler:
 
-    def __init__(self, config, db_file: str = 'watermeters.db'):
+    def __init__(self, config, db_file: str = 'watermeters.db', mqtt_client=None):
         self.db_file = db_file
         self.config = config
         self.meter_predictor = get_meter_predictor()
+        self.mqtt_client = mqtt_client
         self.stop_event = threading.Event()
         print("[POLLING] Using shared meter predictor singleton instance.")
 
@@ -26,7 +27,7 @@ class PollingHandler:
         alert_key = f'polling_{source_name}'
 
         try:
-            capture_and_process_source(self.config, self.db_file, source_row, self.meter_predictor)
+            capture_and_process_source(self.config, self.db_file, source_row, self.meter_predictor, mqtt_client=self.mqtt_client)
             # On success, update last_success_ts and clear error
             with sqlite3.connect(self.db_file) as conn:
                 cursor = conn.cursor()
