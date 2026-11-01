@@ -113,7 +113,18 @@ class MQTTHandler:
 
     # Validate the incoming message
     def _on_message(self, client, userdata, msg):
-        data = json.loads(msg.payload)
+        # Subscriptions like "MeterMonitor/#" also match command topics
+        # (".../cmd/...", payload e.g. "2000" or empty) and our own
+        # published values. An exception escaping this callback can stop
+        # the paho network loop, so never let one through.
+        if "/cmd/" in msg.topic:
+            return
+        try:
+            data = json.loads(msg.payload)
+        except (ValueError, UnicodeDecodeError):
+            return
+        if not isinstance(data, dict):
+            return
         self._process_message(data, msg.topic)
 
     def _validate_message(self, data: Dict[str, Any]) -> bool:
